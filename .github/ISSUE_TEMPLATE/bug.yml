@@ -1,0 +1,14 @@
+name: Bug report
+description: Report a reproducible failure using invented data.
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps, expected behavior and actual behavior
+      description: Include kit, Node, Python and Claude CLI versions. Scrub private names and secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Gate output and minimal configuration

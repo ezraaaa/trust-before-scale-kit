@@ -1,0 +1,12 @@
+{
+  "id": "inferred-gap",
+  "file": "examples/acme-review/verify-walk/journey.txt",
+  "rule": "Inferred requires an unreachable local state and a walk-owed issue; no time is insufficient.",
+  "mustName": [
+    "inferred",
+    "issue"
+  ],
+  "branch": "feat/acme-inferred-gap",
+  "message": "Update Acme journey.txt",
+  "expect": "review"
+}

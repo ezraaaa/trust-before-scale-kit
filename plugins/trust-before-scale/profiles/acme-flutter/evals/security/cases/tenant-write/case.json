@@ -1,0 +1,11 @@
+{
+  "id": "tenant-write",
+  "file": "examples/acme-review/security/records.js",
+  "rule": "Untrusted tenantId must not select another tenant for writes.",
+  "mustName": [
+    "tenant"
+  ],
+  "branch": "feat/acme-tenant-write",
+  "message": "Update Acme records.js",
+  "expect": "review"
+}

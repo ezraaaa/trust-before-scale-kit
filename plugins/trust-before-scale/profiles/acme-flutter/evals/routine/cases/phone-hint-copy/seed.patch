@@ -1,0 +1,6 @@
+diff --git a/apps/mobile/lib/contact_copy.dart b/apps/mobile/lib/contact_copy.dart
+new file mode 100644
+--- /dev/null
++++ b/apps/mobile/lib/contact_copy.dart
+@@ -0,0 +1,1 @@
++const contactHint = 'Enter your contact number';

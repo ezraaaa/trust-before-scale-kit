@@ -1,0 +1,12 @@
+{
+  "id": "phone-hint-tone",
+  "rule": "Use design color tokens instead of literal colors.",
+  "mustName": [
+    "color",
+    "token"
+  ],
+  "file": "apps/mobile/lib/contact_tone.dart",
+  "branch": "feat/phone-hint-tone",
+  "message": "Update contact_tone.dart",
+  "expect": "review"
+}

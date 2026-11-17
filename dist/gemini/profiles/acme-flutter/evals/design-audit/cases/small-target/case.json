@@ -1,0 +1,12 @@
+{
+  "id": "small-target",
+  "file": "examples/acme-review/design-audit/target.css",
+  "rule": "The tap target violates the configured 48px minimum.",
+  "mustName": [
+    "target",
+    "48"
+  ],
+  "branch": "feat/acme-small-target",
+  "message": "Update Acme target.css",
+  "expect": "review"
+}

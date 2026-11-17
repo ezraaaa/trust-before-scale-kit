@@ -1,0 +1,6 @@
+---
+description: Apply trust before scale in configured projects
+alwaysApply: true
+---
+Read ../skills/method/SKILL.md in this plugin at session start when the project has
+.agents/trust-before-scale.json or legacy .claude/trust-before-scale.json.

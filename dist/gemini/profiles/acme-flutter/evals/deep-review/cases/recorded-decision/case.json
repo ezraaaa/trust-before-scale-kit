@@ -1,0 +1,12 @@
+{
+  "id": "recorded-decision",
+  "file": "examples/acme-review/deep-review/account.js",
+  "rule": "The recorded soft-deletion decision must not be undone.",
+  "mustName": [
+    "soft",
+    "decision"
+  ],
+  "branch": "feat/acme-recorded-decision",
+  "message": "Update Acme account.js",
+  "expect": "review"
+}

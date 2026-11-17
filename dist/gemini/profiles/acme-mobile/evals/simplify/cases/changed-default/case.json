@@ -1,0 +1,12 @@
+{
+  "id": "changed-default",
+  "file": "examples/acme-review/simplify/defaults.js",
+  "rule": "Simplification must preserve zero as a valid explicit limit.",
+  "mustName": [
+    "zero",
+    "||"
+  ],
+  "branch": "feat/acme-changed-default",
+  "message": "Update Acme defaults.js",
+  "expect": "review"
+}

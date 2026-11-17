@@ -1,0 +1,12 @@
+{
+  "id": "sent-pass-caption",
+  "rule": "Use Color.Acme design tokens, never literal colors.",
+  "mustName": [
+    "color",
+    "token"
+  ],
+  "file": "apps/ios/ReceiptCaption.swift",
+  "branch": "feat/sent-pass-caption",
+  "message": "Update ReceiptCaption.swift",
+  "expect": "review"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "double-submit",
+  "file": "examples/acme-review/edge-cases/submit.js",
+  "rule": "An Acme checkout retry or double submit must not charge twice; require idempotency.",
+  "mustName": [
+    "idempot",
+    "double"
+  ],
+  "branch": "feat/acme-double-submit",
+  "message": "Update Acme submit.js",
+  "expect": "review"
+}

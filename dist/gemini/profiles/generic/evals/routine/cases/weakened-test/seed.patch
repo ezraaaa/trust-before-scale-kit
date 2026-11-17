@@ -1,0 +1,7 @@
+diff --git a/examples/account.test-spec b/examples/account.test-spec
+new file mode 100644
+--- /dev/null
++++ b/examples/account.test-spec
+@@ -0,0 +1,2 @@
++scenario: reject unauthorized access
++assert: true

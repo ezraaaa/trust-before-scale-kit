@@ -1,0 +1,12 @@
+{
+  "id": "directory-edits",
+  "rule": "Directory writes require an owner authorization check and allow/deny rules tests.",
+  "mustName": [
+    "write",
+    "rules"
+  ],
+  "file": "firebase/directory.rules",
+  "branch": "feat/directory-edits",
+  "message": "Update directory.rules",
+  "expect": "review"
+}

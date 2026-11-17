@@ -1,0 +1,12 @@
+{
+  "id": "same-model",
+  "file": "examples/acme-review/cross-review/review.txt",
+  "rule": "Cross-review requires a different model; run stronger correctness if unavailable.",
+  "mustName": [
+    "model",
+    "different"
+  ],
+  "branch": "feat/acme-same-model",
+  "message": "Update Acme review.txt",
+  "expect": "review"
+}

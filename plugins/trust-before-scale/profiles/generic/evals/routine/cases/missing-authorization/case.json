@@ -1,0 +1,11 @@
+{
+  "id": "missing-authorization",
+  "rule": "Account access must check that the authenticated caller owns the account.",
+  "mustName": [
+    "authorization"
+  ],
+  "file": "examples/access.policy",
+  "branch": "feat/missing-authorization",
+  "message": "Update access.policy",
+  "expect": "review"
+}

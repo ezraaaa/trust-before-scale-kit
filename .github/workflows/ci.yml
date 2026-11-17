@@ -1,0 +1,79 @@
+name: CI
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check generated manifests and dist/gemini extension
+        run: node scripts/build-harness.mjs --check
+      - run: node --test scripts/*.test.mjs
+      - run: node --test plugins/trust-before-scale/templates/scripts/*.test.mjs
+      - run: node --test plugins/trust-before-scale/tests/*.test.mjs
+      - run: bash plugins/trust-before-scale/tests/merge-gate-smoke.sh
+      - run: npm install -g @anthropic-ai/claude-code@latest
+      - run: claude plugin validate . --strict
+      - run: claude plugin validate plugins/trust-before-scale --profile directory
+      - name: Fresh install
+        shell: bash
+        run: |
+          kit="$PWD"
+          project=$(mktemp -d)
+          trap 'rm -rf "$project"' EXIT
+          cd "$project"
+          git init -q
+          node "$kit/plugins/trust-before-scale/bin/tbs-init" generic
+          node --test scripts/tbs/*.test.mjs
+      - run: node scripts/leak-check.mjs
+  macos:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check generated manifests and dist/gemini extension
+        run: node scripts/build-harness.mjs --check
+      - run: node --test scripts/*.test.mjs
+      - run: node --test plugins/trust-before-scale/templates/scripts/*.test.mjs
+      - run: node --test plugins/trust-before-scale/tests/*.test.mjs
+      - run: bash plugins/trust-before-scale/tests/merge-gate-smoke.sh
+      - run: npm install -g @anthropic-ai/claude-code@latest
+      - run: claude plugin validate . --strict
+      - run: claude plugin validate plugins/trust-before-scale --profile directory
+      - name: Fresh install
+        shell: bash
+        run: |
+          kit="$PWD"
+          project=$(mktemp -d)
+          trap 'rm -rf "$project"' EXIT
+          cd "$project"
+          git init -q
+          node "$kit/plugins/trust-before-scale/bin/tbs-init" generic
+          node --test scripts/tbs/*.test.mjs
+      - run: node scripts/leak-check.mjs

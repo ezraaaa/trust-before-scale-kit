@@ -1,0 +1,12 @@
+{
+  "id": "duplicate-format",
+  "file": "examples/acme-review/simplify/formatter.js",
+  "rule": "Reuse the identical formatting operation without changing behaviour.",
+  "mustName": [
+    "duplicate",
+    "reuse"
+  ],
+  "branch": "feat/acme-duplicate-format",
+  "message": "Update Acme formatter.js",
+  "expect": "review"
+}

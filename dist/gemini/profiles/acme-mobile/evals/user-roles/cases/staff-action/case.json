@@ -1,0 +1,12 @@
+{
+  "id": "staff-action",
+  "file": "examples/acme-review/user-roles/actions.js",
+  "rule": "A parent role must not see the staff-only approve action.",
+  "mustName": [
+    "parent",
+    "staff"
+  ],
+  "branch": "feat/acme-staff-action",
+  "message": "Update Acme actions.js",
+  "expect": "review"
+}

@@ -1,0 +1,19 @@
+{
+  "name": "trust-before-scale",
+  "version": "1.5.0",
+  "description": "Verification before agent count: repeated failures become checks, a feature map walks read, evals for review skills, and a self-merging low-risk lane. Active only in projects that have .agents/trust-before-scale.json or legacy .claude/trust-before-scale.json.",
+  "author": {
+    "name": "Ezra"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/ezraaaa/trust-before-scale-kit",
+  "repository": "https://github.com/ezraaaa/trust-before-scale-kit",
+  "keywords": [
+    "verification",
+    "review",
+    "evals"
+  ],
+  "skills": "./skills",
+  "rules": "./rules",
+  "hooks": "./hooks/cursor.json"
+}

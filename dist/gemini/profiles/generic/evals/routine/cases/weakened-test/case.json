@@ -1,0 +1,11 @@
+{
+  "id": "weakened-test",
+  "rule": "Tests must assert observable behavior; an unconditional true assertion proves nothing.",
+  "mustName": [
+    "assert"
+  ],
+  "file": "examples/account.test-spec",
+  "branch": "feat/account-assertion",
+  "message": "Update account assertion",
+  "expect": "review"
+}

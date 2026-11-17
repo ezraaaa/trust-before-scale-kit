@@ -1,0 +1,407 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ezraaaa/trust-before-scale-kit/main/plugins/trust-before-scale/schema/config.schema.json",
+  "level": 1,
+  "project": "acme-flutter",
+  "baseBranch": "develop",
+  "mergeGate": {
+    "exitMarker": "EXIT=0",
+    "requireMatchHead": true,
+    "requireExitTest": true,
+    "gateCommandPattern": "(?:npm\\s+(?:-w\\s+\\S+\\s+)?(?:run\\s+)?(?:test|lint|gen)\\S*|npx\\s+(?:-w\\s+\\S+\\s+)?(?:playwright|tsc)|melos\\s+run\\s+\\S+|flutter\\s+test|node\\s+scripts/ci-local\\.mjs)"
+  },
+  "selfMerge": {
+    "enabled": false,
+    "_why_off": "Enable only after accepting the project ADR. Firebase-specific block entries protect Firebase configuration and backend code.",
+    "label": "self-merged",
+    "reviewedLabel": "reviewed-after-merge",
+    "testFile": "_test\\.dart$|\\.test\\.(ts|mjs)$|\\.spec\\.ts$",
+    "allow": [
+      "^docs/briefs/",
+      "^docs/notes/",
+      "^HANDOFF\\.md$",
+      "^evals/",
+      "^apps/mobile/test/",
+      "^packages/[^/]+/test/",
+      "^apps/web/tests/",
+      "\\.test\\.(ts|mjs)$"
+    ],
+    "block": [
+      "^firebase/",
+      "^functions/(?!.*\\.test\\.ts$)",
+      "^schema/",
+      "^packages/acme-flutter_(models|firebase|repositories)/lib/",
+      "^\\.github/",
+      "apphosting[^/]*\\.yaml$",
+      "^\\.firebaserc$",
+      "^firebase\\.json$",
+      "^apps/mobile/pubspec\\.yaml$",
+      "^apps/mobile/(android|ios)/",
+      "^CLAUDE\\.md$",
+      "^AGENTS\\.md$",
+      "^PROMPT\\.md$",
+      "^SPEC\\.md$",
+      "^GROK\\.md$",
+      "^\\.claude/",
+      "^\\.agents/",
+      "^design/",
+      "^docs/instructions/",
+      "\\.g\\.dart$",
+      "\\.freezed\\.dart$",
+      "\\.arb$"
+    ],
+    "review": {
+      "ranPattern": "REVIEW RAN \\(\\d+ commands\\)",
+      "findingPattern": "\\[P[0-3]\\]|NO REVIEW HAPPENED|Review comment"
+    },
+    "excludeHeads": "^external/",
+    "excludeLabels": [],
+    "gateRanPattern": "PASS melos run test",
+    "requiredComments": [
+      {
+        "name": "Codex local review",
+        "pattern": "^## Codex review \\(local\\)"
+      },
+      {
+        "name": "Routine evidence",
+        "pattern": "^## Routine evidence$"
+      }
+    ]
+  },
+  "evals": {
+    "suites": [
+      {
+        "name": "routine",
+        "skills": [
+          ".agents/skills/routine",
+          ".agents/skills/deep-review"
+        ],
+        "reviewPrompt": "Use the routine skill to review {branch}",
+        "judgeModel": "gpt-6.1-sol",
+        "maxAgeDays": 7,
+        "linkDirs": [
+          "node_modules"
+        ],
+        "repeats": 2
+      },
+      {
+        "name": "simplify",
+        "skills": [
+          ".agents/skills/simplify"
+        ],
+        "reviewPrompt": "Use the simplify skill to review {branch} Inputs supplied for this blind review: routine.ruleSources=[docs/acme-review-rules.md]; routine.designSystem=[docs/acme-design-system.md]; routine.coreFlows=[docs/acme-core-flows.md]; routine.personas=Acme staff (approve items), Acme parent (view own items only). Read these documents when present; report absent inputs as gaps.",
+        "repeats": 2,
+        "maxAgeDays": 7
+      },
+      {
+        "name": "code-review",
+        "skills": [
+          ".agents/skills/code-review"
+        ],
+        "reviewPrompt": "Use the code-review skill to review {branch} Inputs supplied for this blind review: routine.ruleSources=[docs/acme-review-rules.md]; routine.designSystem=[docs/acme-design-system.md]; routine.coreFlows=[docs/acme-core-flows.md]; routine.personas=Acme staff (approve items), Acme parent (view own items only). Read these documents when present; report absent inputs as gaps.",
+        "repeats": 2,
+        "maxAgeDays": 7
+      },
+      {
+        "name": "deep-review",
+        "skills": [
+          ".agents/skills/deep-review"
+        ],
+        "reviewPrompt": "Use the deep-review skill to review {branch} Inputs supplied for this blind review: routine.ruleSources=[docs/acme-review-rules.md]; routine.designSystem=[docs/acme-design-system.md]; routine.coreFlows=[docs/acme-core-flows.md]; routine.personas=Acme staff (approve items), Acme parent (view own items only). Read these documents when present; report absent inputs as gaps.",
+        "repeats": 2,
+        "maxAgeDays": 7
+      },
+      {
+        "name": "security",
+        "skills": [
+          ".agents/skills/security-review"
+        ],
+        "reviewPrompt": "Use the security-review skill to review {branch} Inputs supplied for this blind review: routine.ruleSources=[docs/acme-review-rules.md]; routine.designSystem=[docs/acme-design-system.md]; routine.coreFlows=[docs/acme-core-flows.md]; routine.personas=Acme staff (approve items), Acme parent (view own items only). Read these documents when present; report absent inputs as gaps.",
+        "repeats": 2,
+        "maxAgeDays": 7
+      },
+      {
+        "name": "user-roles",
+        "skills": [
+          ".agents/skills/user-roles"
+        ],
+        "reviewPrompt": "Use the user-roles skill to review {branch} Inputs supplied for this blind review: routine.ruleSources=[docs/acme-review-rules.md]; routine.designSystem=[docs/acme-design-system.md]; routine.coreFlows=[docs/acme-core-flows.md]; routine.personas=Acme staff (approve items), Acme parent (view own items only). Read these documents when present; report absent inputs as gaps.",
+        "repeats": 2,
+        "maxAgeDays": 7
+      },
+      {
+        "name": "edge-cases",
+        "skills": [
+          ".agents/skills/edge-cases"
+        ],
+        "reviewPrompt": "Use the edge-cases skill to review {branch} Inputs supplied for this blind review: routine.ruleSources=[docs/acme-review-rules.md]; routine.designSystem=[docs/acme-design-system.md]; routine.coreFlows=[docs/acme-core-flows.md]; routine.personas=Acme staff (approve items), Acme parent (view own items only). Read these documents when present; report absent inputs as gaps.",
+        "repeats": 2,
+        "maxAgeDays": 7
+      },
+      {
+        "name": "design-audit",
+        "skills": [
+          ".agents/skills/design-audit"
+        ],
+        "reviewPrompt": "Use the design-audit skill to review {branch} Inputs supplied for this blind review: routine.ruleSources=[docs/acme-review-rules.md]; routine.designSystem=[docs/acme-design-system.md]; routine.coreFlows=[docs/acme-core-flows.md]; routine.personas=Acme staff (approve items), Acme parent (view own items only). Read these documents when present; report absent inputs as gaps.",
+        "repeats": 2,
+        "maxAgeDays": 7
+      },
+      {
+        "name": "cross-review",
+        "skills": [
+          ".agents/skills/routine",
+          ".agents/skills/code-review"
+        ],
+        "reviewPrompt": "Use the routine cross-review protocol and code-review skill to review {branch} Inputs supplied for this blind review: routine.ruleSources=[docs/acme-review-rules.md]; routine.designSystem=[docs/acme-design-system.md]; routine.coreFlows=[docs/acme-core-flows.md]; routine.personas=Acme staff (approve items), Acme parent (view own items only). Read these documents when present; report absent inputs as gaps.",
+        "repeats": 2,
+        "maxAgeDays": 7
+      },
+      {
+        "name": "verify-walk",
+        "skills": [
+          ".agents/skills/verify-walk"
+        ],
+        "reviewPrompt": "Use the verify-walk skill to review {branch} Inputs supplied for this blind review: routine.ruleSources=[docs/acme-review-rules.md]; routine.designSystem=[docs/acme-design-system.md]; routine.coreFlows=[docs/acme-core-flows.md]; routine.personas=Acme staff (approve items), Acme parent (view own items only). Read these documents when present; report absent inputs as gaps.",
+        "repeats": 2,
+        "maxAgeDays": 7
+      }
+    ]
+  },
+  "featureMap": {
+    "file": "docs/feature-map.json",
+    "sources": [
+      {
+        "dir": "apps/mobile/lib/router",
+        "ext": "app_paths.dart",
+        "item": "static const (\\w+) = '/",
+        "id": "mobile:{item}"
+      },
+      {
+        "dir": "apps/web/src/app",
+        "ext": "page.tsx",
+        "pathItem": "^apps/web/src/app(.*)/page\\.tsx$",
+        "id": "web:{item}"
+      }
+    ]
+  },
+  "emulators": {
+    "config": "firebase.json",
+    "only": "auth,firestore,functions,storage,pubsub",
+    "project": "demo-acme-flutter"
+  },
+  "autopilot": {
+    "maxLanes": 2,
+    "handoff": "HANDOFF.md",
+    "continuation": "docs/codex-continuation.md",
+    "extension": ".claude/skills/autopilot/SKILL.md"
+  },
+  "routine": {
+    "rows": [
+      {
+        "name": "prose-no-gate",
+        "paths": [
+          "^docs/(briefs|notes)/",
+          "^HANDOFF\\.md$"
+        ],
+        "passes": [],
+        "reason": "Informational prose with no gate consumer"
+      },
+      {
+        "name": "prose-consumed",
+        "paths": [
+          "^(AGENTS|CLAUDE|GEMINI)\\.md$",
+          "^\\.(agents|claude|codex|cursor)/",
+          "^docs/(instructions|decisions|design|engineering)/",
+          "^skills/"
+        ],
+        "passes": [],
+        "gates": true,
+        "reason": "Instructions consumed by a gate or agent; run the configured gates"
+      },
+      {
+        "name": "tests-tooling",
+        "paths": [
+          "(^|/)(tests?|scripts|tools|hooks|schema|profiles)/",
+          "\\.(test|spec)\\.",
+          "^\\.github/",
+          "(^|/)(package[^/]*\\.json|[^/]*lock[^/]*)$"
+        ],
+        "passes": [
+          "correctness",
+          "cross-review"
+        ],
+        "gates": true,
+        "reason": "Tests and tooling need a correctness read and red proof for new checks"
+      },
+      {
+        "name": "backend",
+        "paths": [
+          "^(backend|server|functions|models|rules|firebase)/",
+          "\\.(rules|sql)$"
+        ],
+        "passes": [
+          "simplify",
+          "correctness",
+          "deep-review",
+          "security",
+          "user-roles",
+          "edge-cases",
+          "cross-review"
+        ],
+        "gates": true,
+        "reason": "Backend changes may widen access without rendering anything"
+      },
+      {
+        "name": "user-visible",
+        "paths": [
+          "^(src|app|apps|lib|ui|web)/"
+        ],
+        "passes": [
+          "simplify",
+          "correctness",
+          "deep-review",
+          "security",
+          "user-roles",
+          "edge-cases",
+          "design-audit",
+          "cross-review",
+          "verify-walk"
+        ],
+        "gates": true,
+        "reason": "Visible behaviour needs role, state and journey checks"
+      },
+      {
+        "name": "new-surface",
+        "paths": [
+          "^(src|app|apps|lib|ui|web)/"
+        ],
+        "addedOnly": true,
+        "passes": [
+          "simplify",
+          "correctness",
+          "deep-review",
+          "security",
+          "user-roles",
+          "edge-cases",
+          "design-audit",
+          "cross-review",
+          "verify-walk"
+        ],
+        "before": [
+          "user-roles",
+          "design-audit"
+        ],
+        "gates": true,
+        "reason": "A new UI file is a conservative new-surface signal; review roles and design before and after building"
+      },
+      {
+        "name": "shared-code",
+        "paths": [
+          "^(packages|shared)/"
+        ],
+        "passes": [
+          "simplify",
+          "correctness",
+          "deep-review",
+          "edge-cases",
+          "cross-review",
+          "verify-walk"
+        ],
+        "gates": true,
+        "reason": "Shared code needs checks on one consumer per application"
+      }
+    ],
+    "passes": {
+      "simplify": {
+        "claude": "/simplify {range}",
+        "codex": "Write task: simplify {range}; reuse and efficiency; no behaviour change",
+        "cursor-agent": "Agent task: simplify {range}; no behaviour change",
+        "gemini": "Agent task: simplify {range}; no behaviour change",
+        "fallback": "kit simplify skill"
+      },
+      "correctness": {
+        "claude": "/code-review {level}; range {range}",
+        "codex": "codex review --base {base}",
+        "cursor-agent": "Agent correctness review of {range} at {level}",
+        "gemini": "Agent correctness review of {range} at {level}",
+        "fallback": "kit code-review skill"
+      },
+      "security": {
+        "claude": "/claude-security scan changes --base {base}, or /security-review; inspect the whole surface",
+        "codex": "Agent task with security-review skill",
+        "cursor-agent": "Agent task with security-review skill",
+        "gemini": "Agent task with security-review skill",
+        "fallback": "kit security-review skill"
+      },
+      "cross-review": {
+        "claude": "codex review --base {base}; confirm model differs from author",
+        "codex": "Claude /code-review {level}; range {range}; confirm model differs from author",
+        "cursor-agent": "Other installed host: correctness review of {range}; confirm different model",
+        "gemini": "Other installed host: correctness review of {range}; confirm different model",
+        "fallback": "Record unavailable reason; run correctness one level higher"
+      },
+      "deep-review": {
+        "claude": "Use deep-review skill on {range}",
+        "codex": "Use deep-review skill on {range}",
+        "cursor-agent": "Use deep-review skill on {range}",
+        "gemini": "Use deep-review skill on {range}",
+        "fallback": "kit deep-review skill"
+      },
+      "user-roles": {
+        "claude": "Use user-roles skill on {range}",
+        "codex": "Use user-roles skill on {range}",
+        "cursor-agent": "Use user-roles skill on {range}",
+        "gemini": "Use user-roles skill on {range}",
+        "fallback": "kit user-roles skill"
+      },
+      "edge-cases": {
+        "claude": "Use edge-cases skill on {range}",
+        "codex": "Use edge-cases skill on {range}",
+        "cursor-agent": "Use edge-cases skill on {range}",
+        "gemini": "Use edge-cases skill on {range}",
+        "fallback": "kit edge-cases skill"
+      },
+      "design-audit": {
+        "claude": "Use design-audit skill on {range}",
+        "codex": "Use design-audit skill on {range}",
+        "cursor-agent": "Use design-audit skill on {range}",
+        "gemini": "Use design-audit skill on {range}",
+        "fallback": "kit design-audit skill"
+      },
+      "verify-walk": {
+        "claude": "Use verify-walk skill on {range}",
+        "codex": "Use verify-walk skill on {range}",
+        "cursor-agent": "Use verify-walk skill on {range}",
+        "gemini": "Use verify-walk skill on {range}",
+        "fallback": "kit verify-walk skill"
+      }
+    },
+    "ruleSources": [
+      "docs/acme-review-rules.md"
+    ],
+    "designSystem": [
+      "docs/acme-design-system.md"
+    ],
+    "personas": [
+      {
+        "role": "Acme staff",
+        "pressure": "Complete daily work quickly",
+        "tasks": [
+          "Approve an item",
+          "Recover a failed save"
+        ]
+      },
+      {
+        "role": "Acme parent",
+        "pressure": "Use a limited account",
+        "tasks": [
+          "View own items",
+          "Request a correction"
+        ]
+      }
+    ],
+    "coreFlows": [
+      "docs/acme-core-flows.md"
+    ]
+  }
+}

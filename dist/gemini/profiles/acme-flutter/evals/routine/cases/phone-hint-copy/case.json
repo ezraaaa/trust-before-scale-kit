@@ -1,0 +1,12 @@
+{
+  "id": "phone-hint-copy",
+  "rule": "All UI copy must come from translation files.",
+  "mustName": [
+    "copy",
+    "translation"
+  ],
+  "file": "apps/mobile/lib/contact_copy.dart",
+  "branch": "feat/phone-hint-copy",
+  "message": "Update contact_copy.dart",
+  "expect": "review"
+}

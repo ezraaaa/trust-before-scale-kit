@@ -1,0 +1,11 @@
+{
+  "id": "embedded-credential",
+  "rule": "Credentials must be read from a secret store, never source.",
+  "mustName": [
+    "secret"
+  ],
+  "file": "examples/service.conf",
+  "branch": "feat/embedded-credential",
+  "message": "Update service.conf",
+  "expect": "review"
+}

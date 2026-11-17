@@ -1,0 +1,12 @@
+{
+  "id": "enforcer-bypass",
+  "file": "examples/acme-review/deep-review/guard.js",
+  "rule": "The configured ownership enforcer must run before writes.",
+  "mustName": [
+    "requireOwner",
+    "ownership"
+  ],
+  "branch": "feat/acme-enforcer-bypass",
+  "message": "Update Acme guard.js",
+  "expect": "review"
+}

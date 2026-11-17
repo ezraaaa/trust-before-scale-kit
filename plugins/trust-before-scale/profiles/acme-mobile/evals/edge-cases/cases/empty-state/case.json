@@ -1,0 +1,12 @@
+{
+  "id": "empty-state",
+  "file": "examples/acme-review/edge-cases/list.js",
+  "rule": "Empty items must have a handled state rather than throwing.",
+  "mustName": [
+    "empty",
+    "undefined"
+  ],
+  "branch": "feat/acme-empty-state",
+  "message": "Update Acme list.js",
+  "expect": "review"
+}

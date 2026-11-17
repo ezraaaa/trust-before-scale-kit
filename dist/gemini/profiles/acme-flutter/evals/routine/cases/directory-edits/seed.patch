@@ -1,0 +1,6 @@
+diff --git a/firebase/directory.rules b/firebase/directory.rules
+new file mode 100644
+--- /dev/null
++++ b/firebase/directory.rules
+@@ -0,0 +1,1 @@
++match /directory/{entry} { allow write: if request.auth != null; }

@@ -1,0 +1,12 @@
+{
+  "id": "dropped-item",
+  "file": "examples/acme-review/code-review/items.js",
+  "rule": "All supplied items must remain visible; slice(1) silently drops the first.",
+  "mustName": [
+    "slice",
+    "first"
+  ],
+  "branch": "feat/acme-dropped-item",
+  "message": "Update Acme items.js",
+  "expect": "review"
+}

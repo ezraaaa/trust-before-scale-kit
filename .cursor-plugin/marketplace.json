@@ -1,0 +1,21 @@
+{
+  "name": "trust-before-scale-kit",
+  "description": "Trust before scale: hard checks, a feature map, skill evals and a low-risk self-merge lane, set up per project.",
+  "owner": {
+    "name": "Ezra",
+    "url": "https://github.com/ezraaaa"
+  },
+  "plugins": [
+    {
+      "name": "trust-before-scale",
+      "source": "./plugins/trust-before-scale",
+      "description": "Merge gate hook, setup and method skills, and per-project profiles (Acme Mobile, Acme Flutter, generic).",
+      "category": "development",
+      "tags": [
+        "verification",
+        "review",
+        "evals"
+      ]
+    }
+  ]
+}

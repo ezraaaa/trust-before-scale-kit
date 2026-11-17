@@ -1,0 +1,11 @@
+{
+  "id": "false-assertion",
+  "file": "examples/acme-review/code-review/items.test.js",
+  "rule": "A test must assert the authorization outcome, not unconditional true.",
+  "mustName": [
+    "assert"
+  ],
+  "branch": "feat/acme-false-assertion",
+  "message": "Update Acme assertion handling",
+  "expect": "review"
+}

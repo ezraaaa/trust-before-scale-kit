@@ -1,0 +1,127 @@
+#!/usr/bin/env node
+// Set up trust before scale in the current project:  tbs-init <acme-mobile|acme-flutter|generic> [--force]
+// Copies the scripts into scripts/tbs/, the profile config to .agents/trust-before-scale.json (preserving legacy .claude/),
+// the profile's eval cases to evals/, and the ADR draft to docs/trust-before-scale/.
+// --update replaces only shared scripts and the brief template; project settings and records stay put.
+// It never commits, and prints what it did.
+const { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } = require("node:fs");
+const { dirname, join, relative, resolve } = require("node:path");
+const { execFileSync } = require("node:child_process");
+
+const plugin = resolve(__dirname, "..");
+const args = process.argv.slice(2);
+const update = args.includes("--update");
+const dirIndex = args.indexOf("--profile-dir");
+if (dirIndex !== -1 && (!args[dirIndex + 1] || args[dirIndex + 1].startsWith("--"))) {
+  console.error("--profile-dir needs a path"); process.exit(1);
+}
+const privateDir = dirIndex === -1 ? process.env.TBS_PROFILE_DIR : args[dirIndex + 1];
+const positional = args.filter((arg, i) => !arg.startsWith("--") && (dirIndex === -1 || i !== dirIndex + 1));
+const profile = positional[0];
+const profileRoot = privateDir ? resolve(privateDir) : join(plugin, "profiles", profile || "generic");
+const force = args.includes("--force");
+const profiles = readdirSync(join(plugin, "profiles")).filter((name) => statSync(join(plugin, "profiles", name)).isDirectory());
+if (!update && (privateDir ? !existsSync(join(profileRoot, "trust-before-scale.json")) : !profiles.includes(profile))) {
+  console.error(`Usage: tbs-init <${profiles.join("|")}> [--force] [--codex-hook] | --profile-dir <path> [--force] [--codex-hook] | --update [--codex-hook]`); process.exit(1);
+}
+let root;
+try { root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim(); }
+catch { console.error("Run tbs-init inside the project's git checkout."); process.exit(1); }
+
+// Prepare before copying anything: malformed project hook files must never be overwritten.
+let codexHooks;
+const codexPath = join(root, ".codex/hooks.json");
+if (args.includes("--codex-hook")) {
+  try {
+    codexHooks = existsSync(codexPath) ? JSON.parse(readFileSync(codexPath, "utf8")) : {};
+    const object = (value) => value && typeof value === "object" && !Array.isArray(value);
+    if (!object(codexHooks) || (codexHooks.hooks !== undefined && !object(codexHooks.hooks))) throw new Error("expected a hooks object");
+    codexHooks.hooks ??= {};
+    for (const [event, entries] of Object.entries(codexHooks.hooks)) {
+      if (!Array.isArray(entries) || entries.some(entry => !object(entry) || !Array.isArray(entry.hooks))) throw new Error(`invalid ${event} hook entries`);
+      codexHooks.hooks[event] = entries.flatMap(entry => {
+        const hooks = entry.hooks.filter(hook => !/hooks\/merge-gate\.py(?=["'\s]|$)/.test(hook.command ?? ""));
+        return hooks.length || entry.hooks.length === 0 ? [{ ...entry, hooks }] : [];
+      });
+    }
+    // Escape shell expansions as well as quotes in the absolute path.
+    const script = join(plugin, "hooks/merge-gate.py").replace(/[\\"$`]/g, "\\$&");
+    (codexHooks.hooks.PreToolUse ??= []).push({ matcher: "Bash", hooks: [{ type: "command", command: `python3 "${script}"`, timeout: 10 }] });
+  } catch (error) {
+    console.error(`Cannot update .codex/hooks.json: ${error.message}`); process.exit(1);
+  }
+}
+
+const wrote = []; const kept = [];
+function place(from, to, transform) {
+  const target = join(root, to);
+  if (update) {
+    const data = transform ? Buffer.from(transform(readFileSync(from, "utf8"))) : readFileSync(from);
+    if (existsSync(target) && readFileSync(target).equals(data)) { console.log(`unchanged ${to}`); return; }
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, data);
+    console.log(`updated   ${to}`);
+    return;
+  }
+  if (existsSync(target) && !force) { kept.push(to); return; }
+  mkdirSync(dirname(target), { recursive: true });
+  if (transform) writeFileSync(target, transform(readFileSync(from, "utf8"))); else cpSync(from, target);
+  wrote.push(to);
+}
+function placeTree(fromDir, toDir) {
+  if (!existsSync(fromDir)) return;
+  for (const entry of readdirSync(fromDir, { withFileTypes: true })) {
+    const from = join(fromDir, entry.name); const to = join(toDir, entry.name);
+    if (entry.isDirectory()) placeTree(from, to); else place(from, to);
+  }
+}
+const version = JSON.parse(readFileSync(join(plugin, ".claude-plugin", "plugin.json"), "utf8")).version;
+const versionPath = join(root, "scripts/tbs/VERSION");
+const oldVersion = existsSync(versionPath) ? readFileSync(versionPath, "utf8").trim() : "not installed";
+const name = !profile || profile === "generic" ? require("node:path").basename(root) : profile;
+placeTree(join(plugin, "templates", "scripts"), "scripts/tbs");
+if (args.includes("--ci")) {
+  const workflow = ".github/workflows/trust-before-scale.yml";
+  if (!update || !existsSync(join(root, workflow))) place(join(plugin, "templates", "ci", "trust-before-scale.yml"), workflow);
+}
+place(join(plugin, "schema", "config.schema.json"), "scripts/tbs/config.schema.json");
+if (!update) {
+  const configDir = existsSync(join(root, ".agents/trust-before-scale.json")) ? ".agents"
+    : existsSync(join(root, ".claude/trust-before-scale.json")) ? ".claude" : ".agents";
+  place(join(profileRoot, "trust-before-scale.json"), `${configDir}/trust-before-scale.json`,
+    (text) => text.replace('"CHANGE-ME"', JSON.stringify(name)));
+  placeTree(join(profileRoot, "evals"), "evals");
+  place(join(plugin, "templates", "docs", "ADR-draft.md"), "docs/trust-before-scale/ADR-draft.md",
+    (text) => text.replaceAll("{project}", name));
+  place(join(plugin, "templates", "docs", "enforcers.md"), "docs/trust-before-scale/enforcers.md");
+  const notes = join(profileRoot, "NOTES.md");
+  if (existsSync(notes)) place(notes, "docs/trust-before-scale/NOTES.md");
+}
+place(join(plugin, "templates", "docs", "brief-template.md"), "docs/trust-before-scale/brief-template.md");
+mkdirSync(dirname(versionPath), { recursive: true });
+if (codexHooks) {
+  mkdirSync(dirname(codexPath), { recursive: true });
+  writeFileSync(codexPath, JSON.stringify(codexHooks, null, 2) + "\n");
+  console.log("wrote  .codex/hooks.json; trust the project hook in Codex /hooks, then confirm an unpinned merge is denied.");
+}
+const versionData = `${version}\n`;
+const sameVersion = existsSync(versionPath) && readFileSync(versionPath, "utf8") === versionData;
+writeFileSync(versionPath, versionData);
+if (update) {
+  console.log(`${sameVersion ? "unchanged" : "updated  "} scripts/tbs/VERSION`);
+  console.log(`VERSION ${oldVersion} → ${version}`);
+  console.log("Nothing was committed.");
+  process.exit(0);
+}
+wrote.push("scripts/tbs/VERSION");
+
+for (const file of wrote) console.log(`wrote  ${file}`);
+for (const file of kept) console.log(`kept   ${file} (exists; --force to replace)`);
+console.log(`
+Next, in this project (${relative(process.cwd(), root) || "."}):
+  1. node --test scripts/tbs/tbs.test.mjs                      the kit's own tests
+  2. node scripts/tbs/feature-map.mjs --init      write docs/feature-map.json, every screen pending
+  3. node scripts/tbs/skill-eval.mjs routine --dry-run
+  4. Read docs/trust-before-scale/ADR-draft.md and decide; the self-merge lane stays off until you do.
+  5. Add these to the project's gate: node scripts/tbs/feature-map.mjs && node scripts/tbs/skill-eval.mjs --check
+Nothing was committed.`);

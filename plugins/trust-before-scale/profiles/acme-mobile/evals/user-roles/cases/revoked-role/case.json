@@ -1,0 +1,12 @@
+{
+  "id": "revoked-role",
+  "file": "examples/acme-review/user-roles/session.js",
+  "rule": "A revoked staff session must not retain edit capability from a cached login role.",
+  "mustName": [
+    "revok",
+    "cached"
+  ],
+  "branch": "feat/acme-revoked-role",
+  "message": "Update Acme session.js",
+  "expect": "review"
+}

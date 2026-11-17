@@ -1,0 +1,8 @@
+diff --git a/examples/access.policy b/examples/access.policy
+new file mode 100644
+--- /dev/null
++++ b/examples/access.policy
+@@ -0,0 +1,3 @@
++resource: account
++authentication: required
++authorization: allow_everyone

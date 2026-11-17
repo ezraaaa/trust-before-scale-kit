@@ -1,0 +1,6 @@
+diff --git a/apps/ios/AvatarCache.swift b/apps/ios/AvatarCache.swift
+new file mode 100644
+--- /dev/null
++++ b/apps/ios/AvatarCache.swift
+@@ -0,0 +1,1 @@
++let cacheNamespace = "com.example.acme.old"

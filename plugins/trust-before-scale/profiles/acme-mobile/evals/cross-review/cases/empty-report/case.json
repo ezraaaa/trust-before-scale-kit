@@ -1,0 +1,12 @@
+{
+  "id": "empty-report",
+  "file": "examples/acme-review/cross-review/review-log.txt",
+  "rule": "A successful process without an actual review needs stronger correctness before readiness.",
+  "mustName": [
+    "review",
+    "quota"
+  ],
+  "branch": "feat/acme-empty-report",
+  "message": "Update Acme review-log.txt",
+  "expect": "review"
+}

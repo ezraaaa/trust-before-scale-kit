@@ -1,0 +1,12 @@
+{
+  "id": "widened-read",
+  "file": "examples/acme-review/security/records.rules",
+  "rule": "Authentication alone widens an owner-only read rule to every signed-in account.",
+  "mustName": [
+    "owner",
+    "read"
+  ],
+  "branch": "feat/acme-widened-read",
+  "message": "Update Acme records.rules",
+  "expect": "review"
+}

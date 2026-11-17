@@ -1,0 +1,6 @@
+diff --git a/apps/ios/ReceiptCaption.swift b/apps/ios/ReceiptCaption.swift
+new file mode 100644
+--- /dev/null
++++ b/apps/ios/ReceiptCaption.swift
+@@ -0,0 +1,1 @@
++let captionColor = Color(red: 0.4, green: 0.5, blue: 0.6)

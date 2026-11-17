@@ -1,0 +1,13 @@
+{
+  "description": "Trust before scale merge gate: pin the verified head, test the gate's exit in the same && chain, never pipe a gate in a merge or commit. Inactive in projects without .agents/trust-before-scale.json (legacy .claude/trust-before-scale.json is also read).",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/merge-gate.py\"", "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}
