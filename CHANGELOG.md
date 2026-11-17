@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1
+
+First Linux CI run fix.
+
+1. `self-merge.mjs --ack-skips` no longer crashes where git has no user identity (CI runners); it records `$USER (no git identity)` instead.
+
 ## 1.5.0
 
 A stricter merge gate, the Codex project hook from the installer, sample prompts, and maintainer tooling for git flow releases.
