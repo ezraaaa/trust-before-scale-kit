@@ -1,0 +1,13 @@
+{
+  "id": "hand-colour",
+  "file": "examples/acme-review/design-audit/button.css",
+  "rule": "Use the design token rather than handwritten colour.",
+  "mustName": [
+    "token",
+    "colour",
+    "color"
+  ],
+  "branch": "feat/acme-hand-colour",
+  "message": "Update Acme button.css",
+  "expect": "review"
+}

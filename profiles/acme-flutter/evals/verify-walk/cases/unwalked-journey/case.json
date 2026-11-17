@@ -1,0 +1,13 @@
+{
+  "id": "unwalked-journey",
+  "file": "examples/acme-review/verify-walk/walk.txt",
+  "rule": "Tests do not prove a browser or simulator walk.",
+  "mustName": [
+    "walk",
+    "browser",
+    "simulator"
+  ],
+  "branch": "feat/acme-unwalked-journey",
+  "message": "Update Acme walk.txt",
+  "expect": "review"
+}

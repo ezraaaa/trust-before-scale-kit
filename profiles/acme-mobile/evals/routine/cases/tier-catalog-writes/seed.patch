@@ -1,0 +1,6 @@
+diff --git a/firebase/catalog.rules b/firebase/catalog.rules
+new file mode 100644
+--- /dev/null
++++ b/firebase/catalog.rules
+@@ -0,0 +1,1 @@
++match /catalog/{tier} { allow write: if request.auth != null; }

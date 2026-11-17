@@ -1,0 +1,32 @@
+diff --git a/examples/acme-review/simplify/defaults.js b/examples/acme-review/simplify/defaults.js
+new file mode 100644
+--- /dev/null
++++ b/examples/acme-review/simplify/defaults.js
+@@ -0,0 +1,2 @@
++// Acme contract: zero is a valid limit; only absent limits default to ten.
++export const limit = value => value || 10;
+diff --git a/docs/acme-review-rules.md b/docs/acme-review-rules.md
+new file mode 100644
+--- /dev/null
++++ b/docs/acme-review-rules.md
+@@ -0,0 +1,4 @@
++# Acme rules
++Account removal is soft deletion for recovery; do not change back.
++Every write calls requireOwner and stays in the caller tenant.
++Records are readable by their owner only. Staff approve; parents only view their own items. Revocation removes write access immediately.
+diff --git a/docs/acme-design-system.md b/docs/acme-design-system.md
+new file mode 100644
+--- /dev/null
++++ b/docs/acme-design-system.md
+@@ -0,0 +1,3 @@
++# Acme design system
++Primary buttons use var(--action-primary), never raw colours.
++Interactive targets are at least 48px in both dimensions.
+diff --git a/docs/acme-core-flows.md b/docs/acme-core-flows.md
+new file mode 100644
+--- /dev/null
++++ b/docs/acme-core-flows.md
+@@ -0,0 +1,3 @@
++# Acme core flows
++Lists handle empty state. Checkout handles retries and double submit with idempotency.
++Account save and invitation expiry require observable journey verification.

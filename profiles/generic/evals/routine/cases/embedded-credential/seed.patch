@@ -1,0 +1,6 @@
+diff --git a/examples/service.conf b/examples/service.conf
+new file mode 100644
+--- /dev/null
++++ b/examples/service.conf
+@@ -0,0 +1,1 @@
++service_secret = "demo-only-credential-123"

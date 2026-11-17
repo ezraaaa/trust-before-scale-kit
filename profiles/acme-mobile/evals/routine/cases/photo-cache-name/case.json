@@ -1,0 +1,11 @@
+{
+  "id": "photo-cache-name",
+  "rule": "Keep the persistent cache namespace com.example.acme.",
+  "mustName": [
+    "com.example.acme"
+  ],
+  "file": "apps/ios/AvatarCache.swift",
+  "branch": "feat/photo-cache-name",
+  "message": "Update AvatarCache.swift",
+  "expect": "review"
+}

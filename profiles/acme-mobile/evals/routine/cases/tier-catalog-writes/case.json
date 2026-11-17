@@ -1,0 +1,12 @@
+{
+  "id": "tier-catalog-writes",
+  "rule": "Catalog writes must be server-only.",
+  "mustName": [
+    "write",
+    "catalog"
+  ],
+  "file": "firebase/catalog.rules",
+  "branch": "feat/tier-catalog-writes",
+  "message": "Update catalog.rules",
+  "expect": "review"
+}
