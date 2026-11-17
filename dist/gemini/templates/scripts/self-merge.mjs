@@ -121,7 +121,10 @@ export function run(argv, { root = ROOT, config = loadConfig(root), ghRun = gh, 
       const time = Date.parse(line.split("\t")[0]);
       if (!Number.isFinite(previous) || !Number.isFinite(time) || time > previous) log(`ACK HOOK SKIP\t${line}`);
     }
-    const who = execFileSync("git", ["var", "GIT_AUTHOR_IDENT"], { cwd: root, encoding: "utf8" }).trim();
+    // A machine with no git identity (CI runners) still records who acknowledged.
+    let who;
+    try { who = execFileSync("git", ["var", "GIT_AUTHOR_IDENT"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
+    catch { who = `${process.env.USER || process.env.USERNAME || "unknown"} (no git identity)`; }
     writeFileSync(stamp, `${at}\n`);
     writeFileSync(stamp + ".audit", `${existsSync(stamp + ".audit") ? readFileSync(stamp + ".audit", "utf8") : ""}${at}\t${who}\n`);
     log(`hook skips acknowledged by ${who} at ${at}`);
