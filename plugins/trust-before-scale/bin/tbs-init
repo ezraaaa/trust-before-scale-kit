@@ -18,6 +18,8 @@ for (const name of [
 const plugin = resolve(__dirname, "..");
 const args = process.argv.slice(2);
 const update = args.includes("--update");
+const listTargets = update && args.includes("--list-targets");
+const targets = [];
 const dirIndex = args.indexOf("--profile-dir");
 if (dirIndex !== -1 && (!args[dirIndex + 1] || args[dirIndex + 1].startsWith("--"))) {
   console.error("--profile-dir needs a path"); process.exit(1);
@@ -32,13 +34,16 @@ if (!update && (privateDir ? !existsSync(join(profileRoot, "trust-before-scale.j
   console.error(`Usage: tbs-init <${profiles.join("|")}> [--force] [--codex-hook] | --profile-dir <path> [--force] [--codex-hook] | --update [--codex-hook]`); process.exit(1);
 }
 let root;
-try { root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim(); }
-catch { console.error("Run tbs-init inside the project's git checkout."); process.exit(1); }
+if (!listTargets) {
+  try { root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim(); }
+  catch { console.error("Run tbs-init inside the project's git checkout."); process.exit(1); }
+}
 
 // Prepare before copying anything: malformed project hook files must never be overwritten.
 let codexHooks;
-const codexPath = join(root, ".codex/hooks.json");
-if (args.includes("--codex-hook")) {
+const codexTarget = ".codex/hooks.json";
+if (!listTargets && args.includes("--codex-hook")) {
+  const codexPath = join(root, codexTarget);
   try {
     codexHooks = existsSync(codexPath) ? JSON.parse(readFileSync(codexPath, "utf8")) : {};
     const object = (value) => value && typeof value === "object" && !Array.isArray(value);
@@ -61,6 +66,7 @@ if (args.includes("--codex-hook")) {
 
 const wrote = []; const kept = [];
 function place(from, to, transform) {
+  if (listTargets) { targets.push(to); return; }
   const target = join(root, to);
   if (update) {
     const data = transform ? Buffer.from(transform(readFileSync(from, "utf8"))) : readFileSync(from);
@@ -83,16 +89,15 @@ function placeTree(fromDir, toDir) {
   }
 }
 const version = JSON.parse(readFileSync(join(plugin, ".claude-plugin", "plugin.json"), "utf8")).version;
-const versionPath = join(root, "scripts/tbs/VERSION");
-const oldVersion = existsSync(versionPath) ? readFileSync(versionPath, "utf8").trim() : "not installed";
-const name = !profile || profile === "generic" ? require("node:path").basename(root) : profile;
+const versionTarget = "scripts/tbs/VERSION";
 placeTree(join(plugin, "templates", "scripts"), "scripts/tbs");
 if (args.includes("--ci")) {
   const workflow = ".github/workflows/trust-before-scale.yml";
-  if (!update || !existsSync(join(root, workflow))) place(join(plugin, "templates", "ci", "trust-before-scale.yml"), workflow);
+  if (listTargets || !update || !existsSync(join(root, workflow))) place(join(plugin, "templates", "ci", "trust-before-scale.yml"), workflow);
 }
 place(join(plugin, "schema", "config.schema.json"), "scripts/tbs/config.schema.json");
 if (!update) {
+  const name = !profile || profile === "generic" ? require("node:path").basename(root) : profile;
   const configDir = existsSync(join(root, ".agents/trust-before-scale.json")) ? ".agents"
     : existsSync(join(root, ".claude/trust-before-scale.json")) ? ".claude" : ".agents";
   place(join(profileRoot, "trust-before-scale.json"), `${configDir}/trust-before-scale.json`,
@@ -105,8 +110,16 @@ if (!update) {
   if (existsSync(notes)) place(notes, "docs/trust-before-scale/NOTES.md");
 }
 place(join(plugin, "templates", "docs", "brief-template.md"), "docs/trust-before-scale/brief-template.md");
+if (listTargets) {
+  if (args.includes("--codex-hook")) targets.push(codexTarget);
+  console.log(JSON.stringify([...targets, versionTarget]));
+  process.exit(0);
+}
+const versionPath = join(root, versionTarget);
+const oldVersion = existsSync(versionPath) ? readFileSync(versionPath, "utf8").trim() : "not installed";
 mkdirSync(dirname(versionPath), { recursive: true });
 if (codexHooks) {
+  const codexPath = join(root, codexTarget);
   mkdirSync(dirname(codexPath), { recursive: true });
   writeFileSync(codexPath, JSON.stringify(codexHooks, null, 2) + "\n");
   console.log("wrote  .codex/hooks.json; trust the project hook in Codex /hooks, then confirm an unpinned merge is denied.");

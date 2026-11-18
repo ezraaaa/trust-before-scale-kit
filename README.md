@@ -111,7 +111,7 @@ gemini extensions install https://github.com/ezraaaa/trust-before-scale-kit --re
 Antigravity users can import the Claude plugin or the Gemini extension with `agy plugin import`.
 Per-tool details, including what has and hasn't been tested on each, are in [harnesses](docs/harnesses.md).
 
-To pin a release, add `#v1.7.0` to the repository source (`--ref v1.7.0` for Gemini).
+To pin a release, add `#v1.7.1` to the repository source (`--ref v1.7.1` for Gemini).
 
 ## Requirements
 
@@ -169,6 +169,9 @@ TBS_PROFILE_DIR=./private/tbs-profile node "$TBS_PLUGIN/bin/tbs-init"
 The directory contains `trust-before-scale.json`, optional `NOTES.md`, and optional
 `evals/<suite>/cases/`. The flag overrides the environment variable. Paths resolve
 from the current directory. `--update` needs no profile and preserves project settings.
+
+The `nextjs-app` feature-map preset merges parallel routes by URL. For example,
+`app/@modal/photo/page.tsx` and `app/photo/page.tsx` share one `/photo` entry.
 
 ## Usage
 
@@ -362,16 +365,21 @@ until its policy and evidence patterns are reviewed. Run with `--dry-run` before
 - In Claude Code, run `/trust-before-scale:update`. In Codex, Gemini CLI, or Cursor, ask your
   agent to use the update skill.
 - In a terminal from your project, run `node scripts/tbs/update.mjs`. Add `--branch` to
-  create an update branch from `main`, `master`, `develop`, or detached HEAD. Use `--dry-run`
-  to preview the selected plugin and branch action.
+  create an update branch after fetching `origin`. The base is the configured Git Flow
+  integration branch, otherwise `origin/develop` if present, otherwise the remote default branch.
+  The name uses the configured Git Flow feature prefix (for example, `feature/tbs-kit-1.7.1`)
+  and defaults to `chore/tbs-kit-<version>`. Pass `--branch-name <name>` with `--branch` to
+  choose a name, or `--dry-run` to preview the update without fetching.
 
-The updater requires a tree clean of tracked changes and uses the newest installed kit. Set
+The updater requires a tree clean of tracked changes, refuses to overwrite untracked installer targets,
+and uses the newest installed kit. Set
 `TBS_PLUGIN` to choose a specific plugin directory. The updater runs doctor after replacing
 the shared scripts and brief template. Review the diff, run your project's gates, and open
 a PR. Re-run evals when their inputs or runner change.
 
-If your project predates `scripts/tbs/update.mjs`, use the update skill or follow the full-path
-installer command in the session-start notice. That update adds the short command.
+For your first update from 1.7.0 or earlier, use the update skill or the installed updater path
+in the session-start notice. The installed updater applies its safety checks before replacing
+the project copy.
 
 For new Claude Code plugin releases, run:
 

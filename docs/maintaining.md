@@ -97,7 +97,7 @@ paths, including any existing test files the lane may need to update.
 
 ## State (18 Nov 2026)
 
-1.7.0 is released: tag `v1.7.0` on `main`, with the `gemini` branch published. This public repository
+1.7.1 is released: tag `v1.7.1` on `main`, with the `gemini` branch published. This public repository
 starts from a fresh history at 1.5.0; earlier history stays private with the owner. Hosted CI runs and is
 green on `main` (Linux and macOS, Node 20 and 22); the release workflow publishes releases.
 
@@ -107,6 +107,13 @@ push `main` directly; contributors go through PRs against `develop`.
 
 Codex CLI 0.166: the trusted project hook blocks an unpinned merge; the plugin-shipped hook is not
 confirmed (`plugin_hooks` shows as removed); see `docs/harnesses.md`. Untested so far: Cursor, Gemini and
-Antigravity installs (none installed on the review machine). Projects that vendor the kit update with `node scripts/tbs/update.mjs --branch` (from 1.7.0) or the `update` skill. Next work: move the
-workflows' actions off Node 20 (GitHub warns), then a public demo project at
-level 2, then a long-form explainer.
+Antigravity installs (none installed on the review machine). Projects that vendor the kit update with `node scripts/tbs/update.mjs --branch` (from 1.7.0; git-flow branch naming from 1.7.1) or the `update` skill. Next work: a public demo project at
+level 2, then a long-form explainer. The kit workflows run on Node 24 action majors since 1.7.1; see Backlog.
+
+## Backlog
+
+- Expand gate fingerprinting to script dependencies and package-manager scripts. Resolving those
+  inputs would need command-specific logic. This release fingerprints the command and the main
+  script when it can resolve that file directly.
+- Update the optional project CI template separately. This release updates the kit's own
+  workflows, so existing project workflow files retain their current runner requirements.

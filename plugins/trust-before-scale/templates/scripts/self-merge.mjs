@@ -17,6 +17,8 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ROOT, adoptionLevel, evidenceFor, isMain, loadConfig } from "./config.mjs";
 
+import { main as evalCheck } from "./skill-eval.mjs";
+
 const SHA = /^[0-9a-f]{40}$/;
 
 /** @param {{path: string, status: string}[]} files @param {object} lane config.selfMerge */
@@ -62,10 +64,22 @@ export function decide({ info, files, gateLogs, reviewLog, config }) {
   for (const label of info.labels ?? []) if ((lane.excludeLabels ?? ["external-agent"]).includes(label.name)) reasons.push(`label ${label.name}: another agent's lane; the owner reviews it`);
   reasons.push(...eligibility(files, lane).reasons);
   for (const required of lane.requiredComments ?? []) {
-    const pattern = new RegExp(required.pattern, "m");
-    const matched = (info.comments ?? []).some(({ body = "" }) => body.split(/\r?\n/).some((line) =>
-      pattern.test(line) && [...line.matchAll(/\bhead[ \t]+([0-9a-f]{7,40})\b/g)]
-        .some(([, sha]) => info.headRefOid?.startsWith(sha))));
+    const pattern = new RegExp(required.pattern, "i");
+    const matched = (info.comments ?? []).some(({ body = "" }) => {
+      const lines = body.split(/\r?\n/);
+      const markers = lines.map(line => /^HEAD=([0-9a-f]{40})[ \t]*$/i.exec(line)?.[1]).filter(Boolean);
+      return lines.some(line => {
+        if (!/^#{1,6}[ \t]+/.test(line)) return false;
+        const heading = line.replace(/^(#{1,6}[ \t]+)\//, "$1");
+        const routine = /^(## Routine evidence)\b/i.exec(heading)?.[1];
+        if (!pattern.test(heading) && !(routine && pattern.test(routine))) return false;
+        const heads = [...markers, ...(heading.match(/\b[0-9a-f]{40}\b/gi) ?? [])];
+        // 1.7.0 comments name the head as `head <short sha>`; keep accepting that form so updates stay green.
+        const short = [...heading.matchAll(/\bhead[ \t]+([0-9a-f]{7,39})\b/gi)].map(([, sha]) => sha);
+        return heads.length + short.length > 0 && heads.every(sha => sha.toLowerCase() === info.headRefOid) &&
+          short.every(sha => info.headRefOid?.startsWith(sha.toLowerCase()));
+      });
+    });
     if (!matched) reasons.push(`missing required PR comment: ${required.name} on this head`);
   }
   if (!gateLogs.length) reasons.push("no gate log given (--gate)");
@@ -213,6 +227,17 @@ export function run(argv, { root = ROOT, config = loadConfig(root), ghRun = gh, 
     reviewLog,
   });
   reasons.push(...linkReasons);
+  if (adoptionLevel(config) >= 4) {
+    const lines = [];
+    try {
+      if (evalCheck(["--check"], { root, config, log: line => lines.push(line) }) !== 0) {
+        reasons.push(...lines.map(line => `eval: ${line}`));
+      }
+    } catch (error) {
+      reasons.push(`could not check evals: ${error.message}`);
+    }
+  }
+
   // A PR that moved while we read the evidence must not borrow another head's proof.
   if (JSON.stringify(view()) !== JSON.stringify(info)) reasons.push("the PR changed while checking; run again");
   log(reasons.length ? `REFUSED #${pr}` : `ELIGIBLE #${pr} at ${info.headRefOid}`);

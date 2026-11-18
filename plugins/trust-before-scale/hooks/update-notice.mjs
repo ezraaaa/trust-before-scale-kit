@@ -109,11 +109,14 @@ export function notice(input, { host = 'claude', runGh = execFileSync, now = Dat
     const messages = [];
     if (older(project, installed)) {
       let instructions;
-      if (existsSync(join(root, 'scripts/tbs/update.mjs'))) {
+      const updater = join(plugin, 'templates/scripts/update.mjs');
+      const installedUpdater = existsSync(updater);
+      if (installedUpdater || existsSync(join(root, 'scripts/tbs/update.mjs'))) {
         const skill = host === 'claude'
           ? 'run /trust-before-scale:update in Claude Code (or ask your agent to use the update skill)'
           : 'ask your agent to use the update skill';
-        instructions = `To update, ${skill}, or in a terminal: node scripts/tbs/update.mjs --branch`;
+        const path = installedUpdater ? `"${updater.replace(/[\\"$`]/g, '\\$&')}"` : 'scripts/tbs/update.mjs';
+        instructions = `To update, ${skill}, or in a terminal: node ${path} --branch`;
       } else {
         const path = join(plugin, 'bin/tbs-init').replace(/[\\"$`]/g, '\\$&');
         const flag = hasCodexHook(root) ? ' --codex-hook' : '';

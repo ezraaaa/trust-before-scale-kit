@@ -88,6 +88,7 @@ export function expandMatrix(workflow, platform = process.platform, allJobs = fa
   });
 }
 export function actionKind(step) {
+  // Local handling depends on the supported action inputs, including on Node 24 action releases.
   const match = /^(actions\/(?:checkout|setup-node|setup-python))@v\d+$/.exec(step.uses);
   if (!match) fail(`Unsupported action: ${step.uses}`);
   const allowed = { 'actions/checkout': [], 'actions/setup-node': ['node-version'], 'actions/setup-python': ['python-version'] }[match[1]];

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.7.1
+
+- Refuse to overwrite untracked update targets, including ignored files.
+- Create update branches from the fetched integration branch with Git Flow naming and a `--branch-name` override.
+- Accept both routine evidence headings in self-merge. A comment must name the PR head (`HEAD=<full sha>`, the full sha, or the 1.7.0 `head <short sha>` form); a stale head does not count.
+- Check configured skill eval records before self-merge.
+- Fingerprint gate scripts in new eval records and check them with `--check --fresh`. Older records remain valid under the existing checks.
+- Document and test the single URL ID for Next.js parallel route pages.
+- Move repository GitHub Actions to Node 24 action releases and verify local CI support.
+- Document updater options and deferred work in the maintainer guide.
+
 ## 1.7.0
 
 A short update command: `/trust-before-scale:update`, or `node scripts/tbs/update.mjs --branch`.
