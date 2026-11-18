@@ -45,6 +45,19 @@ the check, and notices when a check stops holding.
 Set `"level"` in the config; scripts above your level say "not adopted" instead of failing.
 See [recipes](docs/recipes/) for worked scenarios.
 
+#### Changing your level
+
+1. In `.agents/trust-before-scale.json` (or the older `.claude/trust-before-scale.json`), set `"level"`
+   to 1, 2, 3 or 4.
+2. Run `node scripts/tbs/doctor.mjs`. It lists what the new level still needs, each with a next step.
+3. Commit the config change on a branch and merge it like any other change: it changes what your
+   gates and lanes allow.
+
+You can move down at any time; checks above the new level report "not adopted". Below level 4,
+`lanes.mjs` allows one agent at a time and the self-merge lane is off. A config with no `level` keeps
+level-4 behaviour, which is how installs from before levels existed keep working; set it explicitly to
+step down. `tbs-init --update` keeps your level.
+
 ## Quickstart
 
 Install in whichever tools you use; they share one project config and one merge-gate script.
