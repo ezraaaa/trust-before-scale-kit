@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.7.0
+
+A short update command: `/trust-before-scale:update`, or `node scripts/tbs/update.mjs --branch`.
 
 1. Added the `update` skill and `node scripts/tbs/update.mjs` to update the project kit from an installed plugin, guard protected branches and tracked changes, and run doctor. Session-start notices suggest the short commands when available.
 
