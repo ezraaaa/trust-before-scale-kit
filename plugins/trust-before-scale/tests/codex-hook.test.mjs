@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, cpSync, ex
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import '../templates/scripts/config.mjs';
 const plugin = fileURLToPath(new URL('../', import.meta.url));
 function fixture(run) {
   const root = mkdtempSync(join(tmpdir(), 'tbs-codex-'));

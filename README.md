@@ -45,6 +45,38 @@ the check, and notices when a check stops holding.
 Set `"level"` in the config; scripts above your level say "not adopted" instead of failing.
 See [recipes](docs/recipes/) for worked scenarios.
 
+#### What each level does
+
+Each level keeps everything below it.
+
+- **Level 1: merge gate.** The hook blocks `gh pr merge` unless the command pins the head that went
+  green (`--match-head-commit`) and tests the gate log's exit line in the same `&&` chain; an existing
+  gate log must name that head. Scripts for higher levels report "not adopted". One agent at a time.
+- **Level 2: feature map.** `feature-map.mjs` checks that every screen or route found in your source
+  is accounted for: either mapped, or listed in `notMappedYet` with a reason. A new screen fails until
+  you do one or the other. `doctor.mjs` checks the map and its sources exist.
+- **Level 3: proven reviews and learning.** `skill-eval.mjs` runs your review skills against seeded
+  faults and `--check` fails when a record is missing, stale or red. `learn.mjs` records mistakes (the
+  hook records its own blocks and `git revert`), and `doctor.mjs` reports repeating ones. `doctor.mjs`
+  also checks the eval suites, their skills and an independent judge.
+- **Level 4: scale.** `lanes.mjs` allows up to `autopilot.maxLanes` agents at once, and drops to one
+  while any eval is red or stale, the feature map check fails, a self-merge review is owed, a hook skip
+  is unacknowledged, a check did not hold, or too many mistakes repeat. The self-merge lane becomes
+  available for low-risk paths, but stays off until you set `selfMerge.enabled` after accepting the ADR.
+
+#### Changing your level
+
+1. In `.agents/trust-before-scale.json` (or the older `.claude/trust-before-scale.json`), set `"level"`
+   to 1, 2, 3 or 4.
+2. Run `node scripts/tbs/doctor.mjs`. It lists what the new level still needs, each with a next step.
+3. Commit the config change on a branch and merge it like any other change: it changes what your
+   gates and lanes allow.
+
+You can move down at any time; checks above the new level report "not adopted". Below level 4,
+`lanes.mjs` allows one agent at a time and the self-merge lane is off. A config with no `level` keeps
+level-4 behaviour, which is how installs from before levels existed keep working; set it explicitly to
+step down. `tbs-init --update` keeps your level.
+
 ## Quickstart
 
 Install in whichever tools you use; they share one project config and one merge-gate script.
@@ -79,7 +111,7 @@ gemini extensions install https://github.com/ezraaaa/trust-before-scale-kit --re
 Antigravity users can import the Claude plugin or the Gemini extension with `agy plugin import`.
 Per-tool details, including what has and hasn't been tested on each, are in [harnesses](docs/harnesses.md).
 
-To pin a release, add `#v1.5.0` to the repository source (`--ref v1.5.0` for Gemini).
+To pin a release, add `#v1.5.2` to the repository source (`--ref v1.5.2` for Gemini).
 
 ## Requirements
 
@@ -111,7 +143,8 @@ calls of its own; it only runs the tools you configure.
 4. Edit feature discovery for your source tree, then run
    `node scripts/tbs/feature-map.mjs --init`. Fill in the pending screens in
    `docs/feature-map.json`, including roles, journeys and expected results. Run
-   `node scripts/tbs/feature-map.mjs` to check coverage; pending entries deliberately fail.
+   `node scripts/tbs/feature-map.mjs` to check coverage; a screen that is neither mapped nor listed in
+   `notMappedYet` with a reason fails.
 5. Configure a project review skill at the suite's `skills` path, its `reviewPrompt`,
    and a reachable base branch (`develop` by default). Run
    `node scripts/tbs/skill-eval.mjs routine --dry-run` to validate seeds, then

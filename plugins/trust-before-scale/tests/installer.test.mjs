@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,4 +77,14 @@ test('CI install parses as YAML, preserves workflow on update and refreshes sche
  execFileSync('ruby',['-ryaml','-e','YAML.load_file(ARGV[0]);',file]);
  assert.ok(readFileSync(join(root,'scripts/tbs/config.schema.json'),'utf8').includes('level'));
  writeFileSync(file,'# custom\n'); install(['--update','--ci']); assert.equal(readFileSync(file,'utf8'),'# custom\n');
+}));
+
+test('installer targets the current checkout with inherited Git settings', () => inRepo(({ root }) => {
+  inRepo(({ root: sentinel }) => {
+    execFileSync(process.execPath, [installer, 'generic'], {
+      cwd: root, env: { ...process.env, GIT_DIR: join(sentinel, '.git'), GIT_WORK_TREE: sentinel },
+    });
+    assert.ok(existsSync(join(root, 'scripts/tbs/config.mjs')));
+    assert.ok(!existsSync(join(sentinel, 'scripts/tbs/config.mjs')));
+  });
 }));

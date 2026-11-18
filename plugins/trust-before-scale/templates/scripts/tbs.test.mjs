@@ -276,7 +276,7 @@ test("judge model is optional and the environment overrides suite settings", () 
           judgedOnce = true;
           const index = args.indexOf("--model");
           assert.equal(index < 0 ? undefined : args[index + 1], expected);
-          writeFileSync(args[args.indexOf("-o") + 1], JSON.stringify({ caught: true, evidence: "incorrect count" }));
+          writeFileSync(args[args.indexOf("-o") + 1], JSON.stringify({ caught: true, evidence: "src/x.ts has incorrect count" }));
           return { status: 0 };
         }
         return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
