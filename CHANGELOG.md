@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+1. `doctor.mjs` no longer fails a config without a `level` that keeps its own feature map, matching `lanes.mjs`; it prints a NOTE instead. An explicit level of 2 or more still requires `featureMap`.
+
 ## 1.5.1
 
 First Linux CI run fix.
