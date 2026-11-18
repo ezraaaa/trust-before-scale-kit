@@ -645,6 +645,26 @@ function laneFixture({ root, put }) {
   return { cfg, record, options: { root, config: cfg, ghRun: owedGh(() => []) } };
 }
 
+test("owed search trims the repo name from raw gh output", () => inRepo((repo) => {
+  const { options } = laneFixture(repo);
+  const queries = [];
+  const ghRun = (args) => {
+    if (args[0] === "repo" && args[1] === "view") return "acme/project\n";
+    const query = args.find((arg) => arg.startsWith("q="));
+    queries.push(query);
+    if (query.includes("\n")) throw new Error("gh: Validation Failed (HTTP 422)");
+    return options.ghRun(args);
+  };
+  const output = [];
+  const result = run(["--owed"], { ...options, ghRun, log: (line) => output.push(line) });
+  const { reasons } = laneAllowance({ ...options, ghRun });
+  assert.equal(queries.length, 2);
+  for (const query of queries) assert.doesNotMatch(query, /\n/);
+  assert.equal(result, 0);
+  assert.ok(output.includes("nothing owed"));
+  assert.doesNotMatch(reasons.join("\n"), /could not check owed/);
+}));
+
 test("skip acknowledgement hides older skips and restores the lane ceiling", () => inRepo((repo) => {
   const { options } = laneFixture(repo);
   repo.put(".git/tbs-skips.log", "2020-01-01T00:00:00Z\told skip\tcommand\n");
