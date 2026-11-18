@@ -11,7 +11,7 @@ import { laneAllowance, main as lanesMain } from "./lanes.mjs";
 import { evidenceFor, loadConfig } from "./config.mjs";
 import { decide, eligibility, reviewClean, run } from "./self-merge.mjs";
 import { casesHash, hiddenPaths, loadCases, runCase, skillHash, gated, judged, recordProblems, reviewText, settingsHash, validateCase, main as evalMain } from "./skill-eval.mjs";
-import { discoverIn, problems, topLevelNames, main as mapMain } from "./feature-map.mjs";
+import { discover, discoverIn, problems, topLevelNames, main as mapMain } from "./feature-map.mjs";
 import { bootEnv, isolate, portsNeeded } from "./free-ports.mjs";
 
 const HEAD = "a".repeat(40);
@@ -825,3 +825,69 @@ function owedGh(getRows) {
     return JSON.stringify(row);
   };
 }
+
+for (const body of [`## Routine evidence\nHEAD=${HEAD}`, `Intro\n## /rOuTiNe evidence (head ${HEAD})`]) {
+  test(`accepts current routine evidence from ${body.split("\n").find(line => line.startsWith("##"))}`, () => {
+    const input = { files: [{ path: "docs/a.md", status: "added" }],
+      config: { ...config, selfMerge: { ...lane, requiredComments: [{ name: "Routine evidence", pattern: "^## Routine evidence$" }] } },
+      gateLogs: [{ name: "g", text: gateLog() }], reviewLog: { name: "r", text: reviewLog() } };
+    const check = body => decide({ ...input, info: { ...info, comments: [{ body }] } });
+    assert.deepEqual(check(body), []);
+    assert.ok(check(body.replace(HEAD, OTHER)).some(reason => reason.includes("missing required PR comment")));
+    // A 1.7.0-style short head in the heading still counts; a short stale one does not.
+    if (body.includes("(head")) {
+      assert.deepEqual(check(body.replace(HEAD, HEAD.slice(0, 7))), []);
+      assert.ok(check(body.replace(HEAD, OTHER.slice(0, 7))).some(reason => reason.includes("missing required PR comment")));
+    } else {
+      assert.ok(check(body.replace(HEAD, HEAD.slice(0, 7))).some(reason => reason.includes("missing required PR comment")));
+    }
+  });
+}
+
+test("self-merge checks configured evals before it can write", () => inRepo(({ root, put }) => {
+  putCase(put);
+  const output = [];
+  const options = { root, config: { ...config, evals: { suites: [suite] } },
+    ghRun: args => {
+      if (args[1] === "view") return JSON.stringify(info);
+      if (args[0] === "api") return JSON.stringify([[{ filename: "docs/a.md", status: "added" }]]);
+      assert.fail(`unexpected write: ${args}`);
+    },
+    read: path => path === "r" ? reviewLog() : path === "x" ? "clean" : gateLog(),
+    log: line => output.push(line) };
+  assert.equal(run(["7", "--gate", "g", "--review", "r", "--dry-run"], options), 1);
+  assert.match(output.join("\n"), /no result\.json/);
+}));
+
+test("fresh eval checks detect script changes while old records still pass", () => inRepo(({ root, git, put }) => {
+  const script = "scripts/gate.mjs";
+  put(script, "console.log('src/x.ts incorrect'); process.exitCode = 1;\n");
+  git("add", script);
+  git("-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", "commit", "-qm", "Gate script");
+  putCase(put, seed, { ...caseValue, gate: `node "${script}"` });
+  const output = [];
+  const options = { root, config: { evals: { suites: [suite] } }, log: line => output.push(line),
+    run: (command, args, opts) => spawnSync(command, command === "git" ? ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args] : args, { encoding: "utf8", ...opts }) };
+  assert.equal(evalMain(["routine"], options), 0);
+  assert.equal(evalMain(["--check", "--fresh"], options), 0);
+  put(script, "process.exitCode = 0;\n");
+  assert.equal(evalMain(["--check"], options), 0);
+  assert.equal(evalMain(["--check", "--fresh"], options), 1);
+  assert.match(output.join("\n"), /gate inputs changed/);
+  const path = "evals/routine/result.json";
+  const record = JSON.parse(readFileSync(join(root, path), "utf8"));
+  delete record.gateFingerprint;
+  put(path, JSON.stringify(record));
+  assert.equal(evalMain(["--check", "--fresh"], options), 0);
+  assert.match(output.join("\n"), /predates the gate fingerprint/);
+}));
+
+test("Next.js parallel pages share the same URL ID", () => inRepo(({ root, put }) => {
+  const ids = () => [...discover(root, [{ dir: "app", preset: "nextjs-app" }]).keys()];
+  put("app/@modal/photo/page.tsx", "");
+  assert.deepEqual(ids(), ["/photo"]);
+  put("app/photo/page.tsx", "");
+  assert.deepEqual(ids(), ["/photo"]);
+  rmSync(join(root, "app/@modal"), { recursive: true });
+  assert.deepEqual(ids(), ["/photo"]);
+}));

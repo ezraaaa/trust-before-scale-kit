@@ -9,7 +9,7 @@ const source = fs.readFileSync(new URL('../.github/workflows/ci.yml', import.met
 test('parses workflow steps, names, shell and literal block', () => {
   const workflow = parseWorkflow(source);
   const steps = workflow.jobs.linux.steps;
-  assert.equal(steps[0].uses, 'actions/checkout@v4');
+  assert.equal(steps[0].uses, 'actions/checkout@v7');
   const fresh = steps.find(s => s.name === 'Fresh install');
   assert.equal(fresh.shell, 'bash');
   assert.match(fresh.run, /kit="\$PWD"\n/);
@@ -55,6 +55,9 @@ test('job conditions are NOT RUN unless all jobs are forced, still respecting OS
 test('maps only known actions and supported options', () => {
   for (const [uses, options, expected] of [
     ['actions/checkout@v4', {}, 'checkout'],
+    ['actions/checkout@v7', {}, 'checkout'],
+    ['actions/setup-node@v7', { 'node-version': '${{ matrix.node }}' }, 'setup-node'],
+    ['actions/setup-python@v7', { 'python-version': '3.x' }, 'setup-python'],
     ['actions/setup-node@v4', { 'node-version': '${{ matrix.node }}' }, 'setup-node'],
     ['actions/setup-python@v5', { 'python-version': '3.x' }, 'setup-python'],
   ]) assert.equal(actionKind({ uses, with: options }), expected);

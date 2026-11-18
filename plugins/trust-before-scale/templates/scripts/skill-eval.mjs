@@ -14,7 +14,7 @@
 //                                                         (--fresh also fails a record older than maxAgeDays)
 import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, posix, resolve } from "node:path";
 import { ROOT, isMain, adoptionLevel, loadConfig, validateConfig } from "./config.mjs";
@@ -113,6 +113,25 @@ export function hashFiles(files) {
 }
 export const skillHash = (root, suite) => hashFiles(suite.skills.flatMap((path) => filesUnder(root, path)));
 export const casesHash = (cases) => hashFiles(cases.map((item) => ({ path: item.id, data: JSON.stringify(item) })));
+
+function gateInput(root, command) {
+  const hash = createHash("sha256").update(command);
+  // Resolve straightforward script invocations without interpreting shell syntax or PATH.
+  const script = /^(?:(?:node|bash|sh|python3?|ruby|perl)\s+)?(?:"([^"\n]+)"|'([^'\n]+)'|([\w./-]+))(?=\s|$)/.exec(command.trim());
+  const path = script?.slice(1).find(Boolean);
+  if (path && !path.startsWith("-") && !/[\\$`]/.test(path)) {
+    const file = resolve(root, path);
+    try {
+      if (statSync(file).isFile()) hash.update("\0").update(readFileSync(file));
+    } catch (error) {
+      if (!["ENOENT", "ENOTDIR"].includes(error.code)) throw error;
+    }
+  }
+  return hash.digest("hex");
+}
+
+const gateFingerprint = (cases, input) => hashFiles(cases.filter(item => item.expect === "gate")
+  .map(item => ({ path: item.id, data: input(item) })));
 
 export const settingsHash = (suite, strict = false) => createHash("sha256").update(JSON.stringify({
   reviewPrompt: suite.reviewPrompt ?? null,
@@ -284,7 +303,8 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
       symlinkSync(join(linkRoot, dir), join(worktree, dir), "dir");
     }
     if (item.expect === "gate") {
-      outcome = gated(run("sh", ["-c", item.gate], { cwd: worktree }), item.file);
+      const input = gateInput(worktree, item.gate);
+      outcome = { ...gated(run("sh", ["-c", item.gate], { cwd: worktree }), item.file), gateInput: input };
     } else {
       // Review the skill as it is now, not as it was on the base branch.
       for (const path of suite.skills) { rmSync(join(worktree, path), { recursive: true, force: true }); cpSync(join(root, path), join(worktree, path), { recursive: true }); }
@@ -341,6 +361,11 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
       const record = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : undefined;
       if (record && record.evidenceRule !== 2) log(`[${suite.name}] record predates stricter evidence rule; next run uses basename + mustName and two default repeats`);
       const problems = recordProblems(record, { hash: skillHash(root, suite), cases, settingsHash: settingsHash(suite, record?.evidenceRule === 2), maxAgeDays: suite.maxAgeDays, fresh, repeats: suite.repeats ?? (record?.evidenceRule === 2 ? 2 : 1) });
+      if (record && record.gateFingerprint === undefined) log(`[${suite.name}] record predates the gate fingerprint`);
+      if (fresh && record?.gateFingerprint !== undefined &&
+          record.gateFingerprint !== gateFingerprint(cases, item => gateInput(root, item.gate))) {
+        problems.push("the gate inputs changed since the last eval: run it again");
+      }
       for (const problem of problems) log(`[${suite.name}] ${problem}  (node scripts/tbs/skill-eval.mjs ${suite.name})`);
       bad += problems.length;
     }
@@ -376,11 +401,17 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
   const hash = skillHash(root, suite);
   const runLinks = mkdtempSync(join(tmpdir(), "tbs-links-"));
   let results;
+  const gateInputs = new Map();
   try {
     if (cases.some((item) => item.expect === "review")) copyLinks(root, suite, runLinks);
     results = cases.map((item) => {
       const repeats = suite.repeats ?? 2;
       const runs = Array.from({ length: repeats }, () => runCase(root, base, suite, item, run, config.baseBranch ?? "develop", runLinks));
+      if (item.expect === "gate") {
+        const inputs = new Set(runs.map(result => result.gateInput));
+        if (inputs.size !== 1) throw new Error(`${item.id}: gate inputs changed between runs`);
+        gateInputs.set(item.id, runs[0].gateInput ?? gateInput(root, item.gate));
+      }
       const passes = runs.filter((result) => result.pass).length;
       return { id: item.id, expect: item.expect, pass: passes === repeats, passes, repeats,
         evidence: repeats === 1 ? runs[0].evidence : runs.map((result) => result.evidence) };
@@ -389,7 +420,7 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
   for (const result of results) log(JSON.stringify(result));
   if (skillHash(root, suite) !== hash) throw new Error("the skill files changed during the run; run it again");
   if (!only) {
-    const record = { evidenceRule: 2, date: new Date().toISOString(), base, skillHash: hash, casesHash: casesHash(all), settingsHash: settingsHash(suite, true), cases: results };
+    const record = { evidenceRule: 2, date: new Date().toISOString(), base, skillHash: hash, casesHash: casesHash(all), settingsHash: settingsHash(suite, true), gateFingerprint: gateFingerprint(all, item => gateInputs.get(item.id)), cases: results };
     writeFileSync(join(root, "evals", suite.name, "result.json"), `${JSON.stringify(record, null, 2)}\n`);
   }
   return results.every((result) => result.pass) ? 0 : 1;

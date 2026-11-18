@@ -110,3 +110,11 @@ confirmed (`plugin_hooks` shows as removed); see `docs/harnesses.md`. Untested s
 Antigravity installs (none installed on the review machine). Projects that vendor the kit update with `node scripts/tbs/update.mjs --branch` (from 1.7.0) or the `update` skill. Next work: move the
 workflows' actions off Node 20 (GitHub warns), then a public demo project at
 level 2, then a long-form explainer.
+
+## Backlog
+
+- Expand gate fingerprinting to script dependencies and package-manager scripts. Resolving those
+  inputs would need command-specific logic. This release fingerprints the command and the main
+  script when it can resolve that file directly.
+- Update the optional project CI template separately. This release updates the kit's own
+  workflows, so existing project workflow files retain their current runner requirements.
