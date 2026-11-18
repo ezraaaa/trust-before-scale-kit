@@ -3,6 +3,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Keep Git commands scoped to their working directory when running inside a Git hook.
+for (const name of [
+  "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_PREFIX",
+  "GIT_NAMESPACE", "GIT_QUARANTINE_PATH",
+]) delete process.env[name];
+
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export function loadConfig(root = ROOT) {
