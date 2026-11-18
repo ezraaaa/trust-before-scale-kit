@@ -97,7 +97,7 @@ paths, including any existing test files the lane may need to update.
 
 ## State (18 Nov 2026)
 
-1.5.2 is released: tag `v1.5.2` on `main`, with the `gemini` branch published. This public repository
+1.6.0 is released: tag `v1.6.0` on `main`, with the `gemini` branch published. This public repository
 starts from a fresh history at 1.5.0; earlier history stays private with the owner. Hosted CI runs and is
 green on `main` (Linux and macOS, Node 20 and 22); the release workflow publishes releases.
 
