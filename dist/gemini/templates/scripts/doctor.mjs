@@ -7,6 +7,7 @@ import { ROOT, isMain, loadConfig, validateConfig, adoptionLevel } from "./confi
 import { outcomes } from "./learn.mjs";
 export function main(argv = [], { root = ROOT, config, log = console.log,
   probe = (command) => execFileSync(command, ["--version"], { encoding: "utf8", stdio: "pipe", timeout: 10000 }),
+  plugin = process.env.TBS_PLUGIN,
 } = {}) {
   let failures = 0;
   const fail = (message, next) => { failures++; log(`FAIL ${message}. Next: ${next}`); };
@@ -19,6 +20,26 @@ export function main(argv = [], { root = ROOT, config, log = console.log,
   catch (error) { fail(error.message, "repair the project config using the config schema"); return 1; }
   const level = adoptionLevel(config);
   log(`PASS config (level ${level})`);
+  const versionFile = join(root, "scripts/tbs/VERSION");
+  if (existsSync(versionFile)) {
+    const project = readFileSync(versionFile, "utf8").trim();
+    log(`NOTE kit ${project}`);
+    if (plugin) {
+      try {
+        const { version: installed } = JSON.parse(readFileSync(join(plugin, ".claude-plugin/plugin.json"), "utf8"));
+        if (typeof installed === "string" && /^\d+\.\d+\.\d+$/.test(installed)) {
+          const parts = /^\d+\.\d+\.\d+$/.test(project) ? project.split(".").map(BigInt) : [];
+          const installedParts = installed.split(".").map(BigInt);
+          const difference = parts.findIndex((part, index) => part !== installedParts[index]);
+          if (difference !== -1 && parts[difference] < installedParts[difference]) {
+            log(`WARN project kit ${project} is older than installed plugin ${installed}. Next: node "$TBS_PLUGIN/bin/tbs-init" --update`);
+          } else {
+            log(`NOTE installed kit plugin ${installed}`);
+          }
+        }
+      } catch { /* A missing or invalid plugin manifest is advisory. */ }
+    }
+  }
   const piece = (ok, name, next) => { if (!ok) fail(name, next); else log(`PASS ${name}`); };
   piece(!!config.mergeGate, "merge gate settings", "add mergeGate settings and install/trust your harness hook");
   log("NOTE hook installation/trust must be checked in your harness; doctor cannot prove it is active");

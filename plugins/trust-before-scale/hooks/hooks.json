@@ -1,6 +1,14 @@
 {
-  "description": "Trust before scale merge gate: pin the verified head, test the gate's exit in the same && chain, never pipe a gate in a merge or commit. Inactive in projects without .agents/trust-before-scale.json (legacy .claude/trust-before-scale.json is also read).",
+  "description": "Trust before scale update notice and merge gate: pin the verified head, test the gate's exit in the same && chain, never pipe a gate in a merge or commit. Inactive in projects without .agents/trust-before-scale.json (legacy .claude/trust-before-scale.json is also read).",
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/update-notice.mjs\"", "timeout": 5 }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",

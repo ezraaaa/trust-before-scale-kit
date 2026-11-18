@@ -66,6 +66,40 @@ For self-merge, `selfMerge.review.reviewer` selects a preset's default `ranPatte
 `ranPattern` wins. Custom wrappers should print `REVIEW RAN` after actually running the review,
 or configure a specific marker. Exit markers, exact-head checks and finding checks still apply.
 
+## Session-start update notice
+
+- **Claude Code** uses `SessionStart` with `systemMessage` for the user and
+  `hookSpecificOutput.additionalContext` for the agent, tagged with `hookEventName: SessionStart`.
+  In print mode, the docs describe informational messages in `--output-format stream-json`.
+  [Claude Code hooks reference](https://code.claude.com/docs/en/hooks#sessionstart)
+- **Codex CLI** accepts the same JSON fields. `systemMessage` appears as a UI warning or event-stream
+  entry. The generated plugin hook follows the documented bundled-hook configuration and requires
+  hook trust. End-to-end discovery of this kit’s plugin hook remains unverified. The vendored
+  project hook installs the merge gate only. For releases, use the marketplace upgrade command
+  for Git sources, or refresh the local checkout, then manage the installed kit in `/plugins`.
+  [Codex hooks reference](https://developers.openai.com/codex/hooks)
+  · [Codex marketplace commands](https://github.com/openai/codex/blob/main/codex-rs/cli/src/marketplace_cmd.rs)
+- **Gemini CLI** uses `SessionStart` with `systemMessage` and
+  `hookSpecificOutput.additionalContext`. The generated configuration uses separate exact matchers
+  for `startup` and `resume` and a timeout of 5,000 milliseconds. The release command is
+  `gemini extensions update trust-before-scale`.
+  [Gemini hook output](https://geminicli.com/docs/hooks/reference/#sessionstart)
+  · [Gemini hook configuration](https://geminicli.com/docs/hooks/#matchers)
+  · [Gemini extension updates](https://geminicli.com/docs/extensions/reference/#update-an-extension)
+- **Cursor** is unwired. Its `sessionStart` supports `additional_context` for the agent, and
+  current callers ignore `user_message`.
+  [Cursor hooks reference](https://cursor.com/docs/hooks#sessionstart)
+
+The notice reads the repo-root config and `scripts/tbs/VERSION` on startup or resume. It uses
+the current installed plugin path and adds `--codex-hook` when a project already has the kit’s
+Codex merge hook, including a hook pointing to an older plugin path. Updates require user approval.
+
+With `updateCheck.latestRelease: true`, the hook can show an available plugin release even when
+the project copy is current. It runs `gh release view` with prompts disabled and a two-second
+timeout. The timestamp and result are shared across worktrees in the Git common directory.
+A missing `gh` or an offline check is also cached for 24 hours. The local comparison runs with
+the setting off and makes no network requests.
+
 ## Routine and review passes
 
 Install/update the shared scripts with `tbs-init`; run

@@ -41,3 +41,28 @@ test('a legacy config without level may keep its own feature map; an explicit le
     assert.ok(explicit.logs.some(l => /feature map configured/.test(l) && !l.startsWith('PASS')), explicit.logs.join('\n'));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('doctor reports the vendored version and warns when the installed plugin is newer', () => {
+  const root = mkdtempSync(join(tmpdir(), 'tbs-doctor-version-'));
+  try {
+    mkdirSync(join(root, 'scripts/tbs'), { recursive: true });
+    const plugin = join(root, 'kit');
+    mkdirSync(join(plugin, '.claude-plugin'), { recursive: true });
+    writeFileSync(join(plugin, '.claude-plugin/plugin.json'), '{"version":"1.10.0"}');
+    const check = (version, pluginPath = plugin) => {
+      writeFileSync(join(root, 'scripts/tbs/VERSION'), version + '\n');
+      const logs = [];
+      assert.equal(main([], { root, plugin: pluginPath, config: { project: 'test', level: 1, mergeGate: {} },
+        probe: () => '', log: line => logs.push(line) }), 0);
+      return logs;
+    };
+    const behind = check('1.9.0');
+    assert.ok(behind.includes('NOTE kit 1.9.0'));
+    assert.ok(behind.includes('WARN project kit 1.9.0 is older than installed plugin 1.10.0. Next: node "$TBS_PLUGIN/bin/tbs-init" --update'));
+    const ahead = check('1.11.0');
+    assert.ok(ahead.includes('NOTE kit 1.11.0'));
+    assert.ok(ahead.includes('NOTE installed kit plugin 1.10.0'));
+    assert.ok(!ahead.some(line => line.startsWith('WARN project kit')));
+    assert.ok(!check('1.9.0', '').some(line => line.includes('installed plugin')));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
