@@ -97,7 +97,7 @@ paths, including any existing test files the lane may need to update.
 
 ## State (18 Nov 2026)
 
-1.7.1 is released: tag `v1.7.1` on `main`, with the `gemini` branch published. This public repository
+1.7.2 is released: tag `v1.7.2` on `main`, with the `gemini` branch published. This public repository
 starts from a fresh history at 1.5.0; earlier history stays private with the owner. Hosted CI runs and is
 green on `main` (Linux and macOS, Node 20 and 22); the release workflow publishes releases.
 
@@ -110,15 +110,17 @@ confirmed (`plugin_hooks` shows as removed); see `docs/harnesses.md`. Untested s
 Antigravity installs (none installed on the review machine). The kit workflows run on Node 24 action majors
 since 1.7.1.
 
-**Adoption.** The owner's five projects all run 1.7.1 (four updated with `update.mjs --branch`, one new install at
-level 4 from the generic profile), each merged into its `develop`. Projects update with
+**Adoption.** The owner's five projects run 1.7.1 (four updated with `update.mjs --branch`, one new install at
+level 4 from the generic profile), each merged into its `develop`. Updating them to 1.7.2 makes their eval
+records stale (evidence rule 3): rerun every suite after the update. Projects update with
 `node scripts/tbs/update.mjs --branch` or the `update` skill; the update notice tells them when.
 
 **Handoff for the next session (Codex or Claude).** Nothing is in flight: no open PRs, branches or worktrees.
 Next work, in order:
-1. The 1.7.2 patch in the Backlog below (owner deferred it; plan it first, then release as usual).
-2. A public demo project at level 2.
-3. A long-form explainer.
+1. Update the five projects to 1.7.2 and rerun their eval suites.
+2. The next patch in the Backlog below (owner deferred it; plan it first, then release as usual).
+3. A public demo project at level 2.
+4. A long-form explainer.
 
 ## Backlog
 
@@ -127,7 +129,7 @@ Next work, in order:
   script when it can resolve that file directly.
 - Update the optional project CI template separately. This release updates the kit's own
   workflows, so existing project workflow files retain their current runner requirements.
-- Next patch (1.7.2), owner deferred on 2026-11-18. Each item needs a test that fails first:
+- Next patch (1.7.3), owner deferred on 2026-11-18. Each item needs a test that fails first:
   - `update.mjs --branch` compares versions on the starting checkout. Read `scripts/tbs/VERSION` from the fetched
     base, and stop if the installed kit is not newer (this prevents a downgrade).
   - Without `gitflow.*` config, `--branch` uses `chore/`. Decide a default the git-flow projects accept, or require
