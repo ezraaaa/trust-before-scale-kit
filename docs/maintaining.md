@@ -97,7 +97,7 @@ paths, including any existing test files the lane may need to update.
 
 ## State (18 Nov 2026)
 
-1.5.1 is released: tag `v1.5.1` on `main`, with the `gemini` branch published. This public repository
+1.5.2 is released: tag `v1.5.2` on `main`, with the `gemini` branch published. This public repository
 starts from a fresh history at 1.5.0; earlier history stays private with the owner. Hosted CI runs and is
 green on `main` (Linux and macOS, Node 20 and 22); the release workflow publishes releases.
 
@@ -107,5 +107,6 @@ push `main` directly; contributors go through PRs against `develop`.
 
 Codex CLI 0.166: the trusted project hook blocks an unpinned merge; the plugin-shipped hook is not
 confirmed (`plugin_hooks` shows as removed); see `docs/harnesses.md`. Untested so far: Cursor, Gemini and
-Antigravity installs (none installed on the review machine). Next work: move the workflows' actions off Node 20 (GitHub warns), then a public demo project at
+Antigravity installs (none installed on the review machine). Projects that vendor the kit take a release with `tbs-init --update` on a branch. Next work: move the
+workflows' actions off Node 20 (GitHub warns), then a public demo project at
 level 2, then a long-form explainer.
