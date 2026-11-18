@@ -171,3 +171,12 @@ test('canonical and generated SessionStart hooks use the expected host command a
     ['startup', 'resume'].map(source => group(source, '${extensionPath}', ' gemini', 5000)));
   assert.equal(cursor.sessionStart, undefined);
 });
+
+test('points a 1.7.0 project to the installed updater for the first safe update', async t => {
+  const { plugin, put, check } = await fixture(t);
+  put(configPath, '{}');
+  put(versionPath, '1.7.0');
+  put('scripts/tbs/update.mjs', '');
+  put('../installed kit/templates/scripts/update.mjs', '');
+  assert.ok(check().systemMessage.includes(`node "${plugin}/templates/scripts/update.mjs" --branch`));
+});

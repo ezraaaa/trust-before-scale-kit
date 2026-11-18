@@ -34,11 +34,20 @@ function fixture(t) {
     git('-c', 'user.name=Kit Test', '-c', 'user.email=kit@example.invalid', 'commit', '-qm', 'fixture');
   };
   commit();
+  const addOrigin = () => {
+    git('clone', '--bare', '.', '../origin.git');
+    git('remote', 'add', 'origin', '../origin.git');
+  };
   const install = (dir, version, { gemini = false } = {}) => {
     const path = join(temp, dir);
     const manifest = gemini ? 'gemini-extension.json' : '.claude-plugin/plugin.json';
     put(join('..', dir, manifest), JSON.stringify({ version }));
-    put(join('..', dir, 'bin/tbs-init'), `require('node:fs').writeFileSync('installer.json', JSON.stringify({
+    put(join('..', dir, 'bin/tbs-init'), `if (process.argv.includes('--list-targets')) {
+      console.log(JSON.stringify(['scripts/tbs/VERSION', 'scripts/tbs/new.mjs', 'docs/trust-before-scale/brief-template.md',
+        ...(process.argv.includes('--codex-hook') ? ['.codex/hooks.json'] : [])]));
+      process.exit(0);
+    }
+    require('node:fs').writeFileSync('installer.json', JSON.stringify({
       installer: __filename, args: process.argv.slice(2)
     }));\n`);
     return path;
@@ -53,7 +62,7 @@ function fixture(t) {
   };
   const installed = () => JSON.parse(readFileSync(join(root, 'installer.json'), 'utf8'));
   const untouched = () => assert.ok(!existsSync(join(root, 'installer.json')));
-  return { root, git, put, commit, install, cache, run, installed, untouched };
+  return { root, git, put, commit, install, cache, run, installed, untouched, addOrigin };
 }
 
 test('selects the newest numeric version across hosts and skips broken copies', t => {
@@ -75,7 +84,8 @@ test('selects the newest numeric version across hosts and skips broken copies', 
 });
 
 test('discovers marketplace, Gemini, and Codex copies independently', t => {
-  const { install, run } = fixture(t);
+  const { install, run, addOrigin } = fixture(t);
+  addOrigin();
   for (const [dir, version, gemini] of [
     [`claude config/plugins/marketplaces/example/plugins/${name}`, '1.10.0', false],
     [`home/.gemini/extensions/${name}`, '1.11.0', true],
@@ -89,7 +99,8 @@ test('discovers marketplace, Gemini, and Codex copies independently', t => {
 });
 
 test('TBS_PLUGIN takes precedence and an invalid explicit path fails closed', t => {
-  const { cache, install, run, installed } = fixture(t);
+  const { cache, install, run, installed, addOrigin } = fixture(t);
+  addOrigin();
   cache('2.0.0');
   const chosen = install('explicit kit', '1.10.0');
   const invalid = run(['--branch'], { env: { TBS_PLUGIN: join(chosen, 'missing') } });
@@ -132,19 +143,20 @@ test('refuses staged and unstaged tracked changes before creating a branch', t =
 });
 
 test('guards main, master, develop, and detached HEAD with the exact branch fix', t => {
-  const { cache, git, run, untouched } = fixture(t);
+  const { cache, git, run, untouched, addOrigin } = fixture(t);
+  addOrigin();
   cache('1.10.0');
   for (const branch of ['main', 'master', 'develop', 'HEAD']) {
     if (branch === 'HEAD') git('switch', '--detach');
     else if (branch !== 'main') git('switch', '-c', branch);
     const result = run();
     assert.equal(result.status, 1);
-    assert.ok(result.stderr.trim().endsWith(`git switch -c ${updateBranch}`), result.stderr);
+    assert.ok(result.stderr.includes(`node scripts/tbs/update.mjs --branch (creates ${updateBranch})`), result.stderr);
     untouched();
   }
   git('switch', 'main');
   git('tag', 'main');
-  assert.match(run().stderr, /git switch -c chore\/tbs-kit-1\.10\.0/);
+  assert.match(run().stderr, /update\.mjs --branch \(creates chore\/tbs-kit-1\.10\.0\)/);
   git('switch', '--detach');
   const head = git('rev-parse', 'HEAD');
   const result = run(['--branch']);
@@ -174,7 +186,8 @@ test('passes --codex-hook on request or when the existing Bash hook belongs to t
 });
 
 test('dry run shows the selection and branch action without changing files, refs or the index', t => {
-  const { root, git, put, cache, run, untouched } = fixture(t);
+  const { root, git, put, cache, run, untouched, addOrigin } = fixture(t);
+  addOrigin();
   const selected = cache('1.10.0');
   put('untracked.txt', 'allowed');
   const before = git('status', '--porcelain');
@@ -192,13 +205,82 @@ test('dry run shows the selection and branch action without changing files, refs
 });
 
 test('shows doctor output and propagates its failure', t => {
-  const { git, put, commit, cache, run } = fixture(t);
+  const { git, put, commit, cache, run, addOrigin } = fixture(t);
+  addOrigin();
   cache('1.10.0');
   put('scripts/tbs/doctor.mjs', 'console.log("FAIL example"); process.exitCode = 7;\n');
   commit();
+  git('push', 'origin', 'main');
   const result = run(['--branch']);
   assert.equal(result.status, 7, result.stderr);
   assert.match(result.stdout, /FAIL example/);
   assert.match(result.stderr, /Doctor failed/);
   assert.equal(git('branch', '--show-current'), updateBranch);
+});
+
+test('refuses all existing untracked installer targets, including ignored files', t => {
+  const { cache, git, put, run, untouched } = fixture(t);
+  cache('1.10.0');
+  git('switch', '-c', 'feature/example');
+  put('scripts/tbs/new.mjs', 'local script');
+  put('docs/trust-before-scale/brief-template.md', 'local brief');
+  put('.git/info/exclude', 'scripts/tbs/new.mjs\n');
+  const result = run();
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, /scripts\/tbs\/new\.mjs/);
+  assert.match(result.stderr, /docs\/trust-before-scale\/brief-template\.md/);
+  untouched();
+});
+
+test('branches from freshly fetched git-flow integration with the configured prefix or override', t => {
+  for (const override of [undefined, 'custom/update']) {
+    const { cache, git, put, commit, run } = fixture(t);
+    cache('1.10.0');
+    git('clone', '--bare', '.', '../origin.git');
+    git('remote', 'add', 'origin', '../origin.git');
+    git('config', 'gitflow.prefix.feature', 'feature/');
+    git('config', 'gitflow.branch.develop', 'integration');
+    git('switch', '-c', 'integration');
+    put('integration.txt', 'new remote head');
+    commit();
+    const expected = git('rev-parse', 'HEAD');
+    git('push', 'origin', 'integration');
+    git('update-ref', '-d', 'refs/remotes/origin/integration');
+    git('switch', '--detach', 'main');
+    const result = run(['--branch', ...(override ? ['--branch-name', override] : [])]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(git('branch', '--show-current'), override ?? 'feature/tbs-kit-1.10.0');
+    assert.equal(git('rev-parse', 'HEAD'), expected);
+  }
+});
+
+test('refuses an update branch when origin is missing or cannot be fetched', t => {
+  const { cache, git, run, untouched } = fixture(t);
+  cache('1.10.0');
+  assert.match(run(['--branch']).stderr, /no origin remote/i);
+  git('remote', 'add', 'origin', '../missing.git');
+  assert.match(run(['--branch']).stderr, /fetch origin/i);
+  untouched();
+});
+
+test('explicit branch mode creates a new branch even from a feature branch', t => {
+  const { cache, git, run } = fixture(t);
+  cache('1.10.0');
+  git('clone', '--bare', '.', '../origin.git');
+  git('remote', 'add', 'origin', '../origin.git');
+  git('switch', '-c', 'feature/current');
+  const result = run(['--branch']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(git('branch', '--show-current'), updateBranch);
+});
+
+test('an older installer cannot write project files while being queried for targets', t => {
+  const { install, git, put, run, untouched } = fixture(t);
+  const selected = install('old installer', '1.10.0');
+  put('../old installer/bin/tbs-init', "require('node:fs').writeFileSync('installer.json', '{}');\n");
+  git('switch', '-c', 'feature/example');
+  const result = run([], { env: { TBS_PLUGIN: selected } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /update targets/);
+  untouched();
 });

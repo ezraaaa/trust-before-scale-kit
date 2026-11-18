@@ -95,7 +95,7 @@ export function discover(root, sources) {
         ? [file.replaceAll("\\", "/").match(new RegExp(source.pathItem))?.[1]].filter((x) => x !== undefined)
           .map((route) => {
             if (input.preset === "nextjs-app" && !input.pathItem) {
-              // (group) and @slot folders are not URL segments.
+              // Route groups and @slot folders share the underlying URL. Pages in parallel slots deduplicate by URL ID.
               route = route.split("/").filter(segment => !/^\([^)]+\)$|^@/.test(segment)).join("/");
             }
             return (source.id ?? "{item}").replace("{item}", route || "/").replace("{label}", source.label ?? "");
