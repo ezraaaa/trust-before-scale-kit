@@ -64,7 +64,8 @@ export function resolveSource(source) {
   const resolved = { ...PRESETS[source.preset], ...source };
   if (source.preset === "nextjs-app" && !source.pathItem) {
     const dir = source.dir.replaceAll("\\", "/").replace(/\/$/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    resolved.pathItem = `^${dir}(.*)/page\\.tsx$`;
+    resolved.ext = source.ext ?? "";
+    resolved.pathItem = `^${dir}((?:/[^/]+)*)/page\\.(?:js|jsx|ts|tsx|mdx)$`;
   }
   return resolved;
 }
@@ -92,7 +93,12 @@ export function discover(root, sources) {
       // pathItem: the screen is the file itself (Next.js page.tsx and the like); capture group 1 is the route.
       const ids = source.pathItem
         ? [file.replaceAll("\\", "/").match(new RegExp(source.pathItem))?.[1]].filter((x) => x !== undefined)
-          .map((route) => (source.id ?? "{item}").replace("{item}", route || "/").replace("{label}", source.label ?? ""))
+          .map((route) => {
+            if (input.preset === "nextjs-app" && !input.pathItem) {
+              route = route.split("/").filter(segment => !/^\([^)]+\)$/.test(segment)).join("/");
+            }
+            return (source.id ?? "{item}").replace("{item}", route || "/").replace("{label}", source.label ?? "");
+          })
         : discoverIn(readFileSync(join(root, file), "utf8"), source);
       for (const id of ids) if (!found.has(id)) found.set(id, relative(root, join(root, file)));
     }

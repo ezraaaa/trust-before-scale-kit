@@ -126,3 +126,11 @@ test('doctor reports due and recurred classes at level 3+, CI excludes local jou
   assert.match(run(['--ci']), /1 due classes, 0 recurred classes/);
   assert.doesNotMatch(run([], 2), /NOTE lessons/);
 }));
+
+test('Next.js App Router discovers page extensions and omits route groups from IDs', () => temporary((root, put) => {
+  for (const file of ['src/app/(public)/page.tsx', 'src/app/(public)/about/page.jsx',
+    'src/app/account/(settings)/profile/page.js', 'src/app/guide/[slug]/page.mdx',
+    'src/app/help/route.ts', 'src/app/mypage.tsx', 'src/pages/legacy.tsx']) put(file, '');
+  const found = discover(root, [{ dir: 'src/app', preset: 'nextjs-app' }]);
+  assert.deepEqual([...found.keys()].sort(), ['/', '/about', '/account/profile', '/guide/[slug]']);
+}));

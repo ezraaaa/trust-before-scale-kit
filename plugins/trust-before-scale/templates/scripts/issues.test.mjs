@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { main as evaluate, judged, loadCases, casesHash, skillHash, settingsHash } from './skill-eval.mjs';
+import { laneAllowance } from './lanes.mjs';
 import { run } from './self-merge.mjs';
 import { loadConfig, validateConfig } from './config.mjs';
 function temporary(fn) {
@@ -100,4 +101,33 @@ test('metadata is accepted at every object depth while typos and required fields
  assert.throws(()=>validateConfig({typo:true}),/unknown key/);
  assert.throws(()=>validateConfig({selfMerge:{review:{typo:true}}}),/unknown key/);
  assert.throws(()=>validateConfig({evals:{suites:[{name:'missing skills'}]}}),/skills: required/);
+});
+
+test('owed lists local skips when GitHub search fails and lanes stay capped', () => temporary(root => {
+ const line = '2026-01-01T00:00:00Z\toffline reason\tcommand';
+ writeFileSync(join(root, '.git/tbs-skips.log'), line + '\n');
+ const output = [];
+ const ghRun = args => {
+   if (args[0] === 'repo') return 'acme/project';
+   throw new Error('GitHub unavailable');
+ };
+ const config = { autopilot: { maxLanes: 4 }, evals: { suites: [{ name: 'review', skills: [] }] } };
+ assert.throws(() => run(['--owed'], { root, config, ghRun, log: x => output.push(x) }), /GitHub unavailable/);
+ const allowance = laneAllowance({ root, config, ghRun, evalCheck: () => 0 });
+ assert.equal(allowance.allowed, 1);
+ assert.match(allowance.reasons.join(' '), /unreviewed hook skips.*offline reason/);
+ assert.deepEqual(output, [`HOOK SKIP\t${line}`]);
+}));
+
+test('owed surfaces a skip-log migration failure', () => temporary(root => {
+ mkdirSync(join(root, '.git/worktrees/linked/tbs-skips.log'), { recursive: true });
+ const ghRun = args => args[0] === 'repo' ? 'acme/project' : JSON.stringify([{ total_count: 0, items: [] }]);
+ assert.throws(() => run(['--owed'], { root, config: {}, ghRun, log: () => {} }), { code: 'EISDIR' });
+}));
+
+test('judged required terms must be in the quoted evidence', () => {
+ const item = { file: 'src/auth.js', mustName: ['permission'] };
+ const evidence = 'auth.js needs review';
+ const review = evidence + '\nCheck the permission on that file.';
+ assert.equal(judged(JSON.stringify({ caught: true, evidence }), review, item).pass, false);
 });

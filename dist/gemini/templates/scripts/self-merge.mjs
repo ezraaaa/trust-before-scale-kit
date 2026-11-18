@@ -108,6 +108,30 @@ function skipPaths(root) {
   return { file, stamp: resolve(common, "tbs-skips.reviewed") };
 }
 
+function owedPullRequests(ghRun, label, reviewedLabel) {
+  const repo = ghRun(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
+  const query = `repo:${repo} is:pr is:merged label:${JSON.stringify(label)} -label:${JSON.stringify(reviewedLabel)}`;
+  const pages = JSON.parse(ghRun(["api", "-X", "GET", "search/issues", "-f", `q=${query}`, "-f", "per_page=100", "--paginate", "--slurp"]));
+  const hits = pages.flatMap(page => page.items);
+  const total = Math.max(0, ...pages.map(page => page.total_count));
+  if (pages.some(page => page.incomplete_results) || total > hits.length) {
+    throw new Error(`Cannot check owed reviews completely: GitHub search returned ${hits.length} of ${total} results (search is capped at 1000). Narrow the backlog and retry.`);
+  }
+  // Search omits merge SHA/time. Read each matching PR before printing any output.
+  return hits.map(hit => {
+    const row = JSON.parse(ghRun(["api", `repos/{owner}/{repo}/pulls/${hit.number}`]));
+    return { ...hit, mergedAt: row.merged_at, mergeCommit: { oid: row.merge_commit_sha } };
+  });
+}
+
+function readOptional(path, read) {
+  try { return read(path); }
+  catch (error) {
+    if (error.code === "ENOENT") return "";
+    throw error;
+  }
+}
+
 export function run(argv, { root = ROOT, config = loadConfig(root), ghRun = gh, read = (path) => readFileSync(path, "utf8"), log = console.log } = {}) {
   const lane = config.selfMerge ?? {};
   const label = lane.label ?? "self-merged";
@@ -131,30 +155,17 @@ export function run(argv, { root = ROOT, config = loadConfig(root), ghRun = gh, 
     return 0;
   }
   if (argv[0] === "--owed") {
-    const repo = ghRun(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
-    const query = `repo:${repo} is:pr is:merged label:${JSON.stringify(label)} -label:${JSON.stringify(reviewedLabel)}`;
-    const pages = JSON.parse(ghRun(["api", "-X", "GET", "search/issues", "-f", `q=${query}`, "-f", "per_page=100", "--paginate", "--slurp"]));
-    const hits = pages.flatMap(page => page.items);
-    const total = Math.max(0, ...pages.map(page => page.total_count));
-    if (pages.some(page => page.incomplete_results) || total > hits.length) {
-      throw new Error(`Cannot check owed reviews completely: GitHub search returned ${hits.length} of ${total} results (search is capped at 1000). Narrow the backlog and retry.`);
-    }
-    // Search omits merge SHA/time. Read each matching PR before printing any output.
-    const owed = hits.map(hit => {
-      const row = JSON.parse(ghRun(["api", `repos/{owner}/{repo}/pulls/${hit.number}`]));
-      return { ...hit, mergedAt: row.merged_at, mergeCommit: { oid: row.merge_commit_sha } };
-    });
+    let owed = [];
+    let githubFailed = false;
+    let githubError;
+    try { owed = owedPullRequests(ghRun, label, reviewedLabel); }
+    catch (error) { githubFailed = true; githubError = error; }
     for (const row of owed) log(`#${row.number}\t${row.title}\t${row.mergeCommit?.oid ?? ""}`);
-    if (!owed.length) log("nothing owed");
+    if (!githubFailed && !owed.length) log("nothing owed");
     // Git resolves both ordinary checkouts and worktrees; the hook writes to that same directory.
-    let skips = "";
-    let reviewed = NaN;
-    try {
-      const { file, stamp } = skipPaths(root);
-      skips = read(file);
-      try { reviewed = Date.parse(read(stamp).split("\n")[0]); }
-      catch { /* No acknowledgement yet: preserve the existing cutoff. */ }
-    } catch { /* No checkout or no skips yet. */ }
+    const { file, stamp } = skipPaths(root);
+    const skips = readOptional(file, read);
+    const reviewed = Date.parse(readOptional(stamp, read).split("\n")[0]);
     const oldest = owed.length ? Math.min(...owed.map((row) => Date.parse(row.mergedAt))) : -Infinity;
     for (const line of skips.split("\n").filter(Boolean)) {
       const time = Date.parse(line.split("\t")[0]);
@@ -164,6 +175,7 @@ export function run(argv, { root = ROOT, config = loadConfig(root), ghRun = gh, 
         log(`HOOK SKIP\t${line}`);
       }
     }
+    if (githubFailed) throw githubError;
     return 0;
   }
   if (adoptionLevel(config) < 4) { log("REFUSED: not adopted (level 4)"); return 1; }

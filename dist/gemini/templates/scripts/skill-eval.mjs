@@ -131,7 +131,10 @@ export function judged(answer, review, item) {
   try {
     const parsed = JSON.parse(answer);
     const quote = typeof parsed.evidence === "string" ? parsed.evidence.trim() : "";
-    return { pass: parsed.caught === true && quote.length > 0 && review.includes(quote) && (!item || ((text) => text.includes(basename(item.file)) && item.mustName.some(term => text.toLowerCase().includes(term.toLowerCase())))(review)), evidence: quote || "no evidence quoted" };
+    const matchesItem = !item || (quote.includes(basename(item.file)) &&
+      item.mustName.some(term => quote.toLowerCase().includes(term.toLowerCase())));
+    return { pass: parsed.caught === true && quote.length > 0 && review.includes(quote) && matchesItem,
+      evidence: quote || "no evidence quoted" };
   } catch { return { pass: false, evidence: "judge returned no JSON" }; }
 }
 export function gated(result, file) {

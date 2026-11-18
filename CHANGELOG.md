@@ -4,6 +4,11 @@
 
 1. `doctor.mjs` no longer fails a config without a `level` that keeps its own feature map, matching `lanes.mjs`; it prints a NOTE instead. An explicit level of 2 or more still requires `featureMap`.
 
+2. Vendored scripts, tests, and the installer clear inherited Git repository settings so hook runs use the intended checkout and leave its Git metadata intact.
+3. The owed-review audit lists local hook skips when GitHub is unavailable and reports skip-log migration failures.
+4. Skill evals require the quoted evidence to name the target file and a required term.
+5. The Next.js App Router feature-map preset recognizes more page extensions and removes route groups from route IDs.
+
 ## 1.5.1
 
 First Linux CI run fix.
