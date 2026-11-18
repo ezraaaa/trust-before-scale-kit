@@ -248,6 +248,7 @@ Runs your review skills against seeded faults and checks they still find them.
 | `setup` | You are adopting the kit in a project. Copies the scripts, config, eval cases and ADR draft. |
 | `method` | You start a session, or are deciding whether to run more agents. |
 | `routine` | A change is ready for review. Runs the passes below as the diff needs them. |
+| `update` | Update the project kit from an installed plugin, run doctor, and prepare a PR. |
 | `learn` | A review missed something, a gate went red on merged code, or you corrected an agent. |
 | `skill-eval` | A review skill changed, before a release, or to add a seeded fault after a miss. |
 | `self-merge` | A PR touches only low-risk paths (tests, briefs, notes, eval cases), or reviews are owed. |
@@ -358,22 +359,30 @@ until its policy and evidence patterns are reviewed. Run with `--dry-run` before
 
 ## Updating and uninstalling
 
+- In Claude Code, run `/trust-before-scale:update`. In Codex, Gemini CLI, or Cursor, ask your
+  agent to use the update skill.
+- In a terminal from your project, run `node scripts/tbs/update.mjs`. Add `--branch` to
+  create an update branch from `main`, `master`, `develop`, or detached HEAD. Use `--dry-run`
+  to preview the selected plugin and branch action.
+
+The updater requires a tree clean of tracked changes and uses the newest installed kit. Set
+`TBS_PLUGIN` to choose a specific plugin directory. The updater runs doctor after replacing
+the shared scripts and brief template. Review the diff, run your project's gates, and open
+a PR. Re-run evals when their inputs or runner change.
+
+If your project predates `scripts/tbs/update.mjs`, use the update skill or follow the full-path
+installer command in the session-start notice. That update adds the short command.
+
+For new Claude Code plugin releases, run:
+
 ```sh
 claude plugin marketplace update trust-before-scale-kit
 claude plugin update trust-before-scale@trust-before-scale-kit
-node "$TBS_PLUGIN/bin/tbs-init" --update
 ```
 
-For new plugin releases, use Claude Code’s `/plugin` → **Marketplaces** → select
-`trust-before-scale-kit` → **Enable auto-update**. A pinned release stays pinned until you
-change its source ref. See [Claude Code plugin updates](https://code.claude.com/docs/en/discover-plugins#update-installed-plugins).
-
-When the installed plugin is newer than the project's copy, the session-start notice begins
-“Trust before scale 1.5.2 is installed; this project uses 1.5.1.” It includes the current
-absolute installer command and release notes. Run the command from the repo root on a new
-branch, then run `node scripts/tbs/doctor.mjs` and the project’s gates and open a PR.
-Project updates replace shared scripts and the brief template. Re-run evals when their
-inputs or runner change.
+To enable automatic plugin updates, open Claude Code’s `/plugin`, select **Marketplaces**,
+choose `trust-before-scale-kit`, and select **Enable auto-update**. A pinned release stays
+pinned until you change its source ref. [Claude Code plugin updates](https://code.claude.com/docs/en/discover-plugins#update-installed-plugins)
 
 To also check GitHub for a newer plugin release, add `"updateCheck": { "latestRelease": true }`
 to the project’s kit config. The setting defaults to off. When enabled, the hook checks via

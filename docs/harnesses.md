@@ -90,9 +90,24 @@ or configure a specific marker. Exit markers, exact-head checks and finding chec
   current callers ignore `user_message`.
   [Cursor hooks reference](https://cursor.com/docs/hooks#sessionstart)
 
-The notice reads the repo-root config and `scripts/tbs/VERSION` on startup or resume. It uses
-the current installed plugin path and adds `--codex-hook` when a project already has the kit’s
-Codex merge hook, including a hook pointing to an older plugin path. Updates require user approval.
+The notice reads the repo-root config and `scripts/tbs/VERSION` on startup or resume.
+It recommends `/trust-before-scale:update` in Claude Code and “use the update skill”
+in Codex and Gemini CLI. In Cursor, ask for the update skill directly. The terminal command
+is `node scripts/tbs/update.mjs --branch`. For older projects the notice gives the full
+installer path. Both commands preserve an existing kit Codex merge hook by passing
+`--codex-hook`, including when the hook points to an earlier plugin path.
+Updates require user approval when offered by the agent.
+
+The terminal updater selects the newest version from these local installations.
+
+- Claude Code searches `plugins/cache/*/trust-before-scale/*/` and
+  `plugins/marketplaces/*/plugins/trust-before-scale/` under `$CLAUDE_CONFIG_DIR`
+  or `~/.claude`.
+- Gemini CLI searches `~/.gemini/extensions/trust-before-scale/`.
+- Codex searches the documented desktop cache at `~/.codex/plugins/cache/*/trust-before-scale/*/`.
+  [OpenAI plugin cache documentation](https://developers.openai.com/plugins/build/plugins#how-local-marketplaces-work)
+- For Cursor or a plugin installed at a custom location, set `TBS_PLUGIN` to the plugin
+  directory. A valid explicit path takes precedence over the automatic search.
 
 With `updateCheck.latestRelease: true`, the hook can show an available plugin release even when
 the project copy is current. It runs `gh release view` with prompts disabled and a two-second
