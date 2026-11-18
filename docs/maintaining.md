@@ -107,8 +107,18 @@ push `main` directly; contributors go through PRs against `develop`.
 
 Codex CLI 0.166: the trusted project hook blocks an unpinned merge; the plugin-shipped hook is not
 confirmed (`plugin_hooks` shows as removed); see `docs/harnesses.md`. Untested so far: Cursor, Gemini and
-Antigravity installs (none installed on the review machine). Projects that vendor the kit update with `node scripts/tbs/update.mjs --branch` (from 1.7.0; git-flow branch naming from 1.7.1) or the `update` skill. Next work: a public demo project at
-level 2, then a long-form explainer. The kit workflows run on Node 24 action majors since 1.7.1; see Backlog.
+Antigravity installs (none installed on the review machine). The kit workflows run on Node 24 action majors
+since 1.7.1.
+
+**Adoption.** The owner's five projects all run 1.7.1 (four updated with `update.mjs --branch`, one new install at
+level 4 from the generic profile), each merged into its `develop`. Projects update with
+`node scripts/tbs/update.mjs --branch` or the `update` skill; the update notice tells them when.
+
+**Handoff for the next session (Codex or Claude).** Nothing is in flight: no open PRs, branches or worktrees.
+Next work, in order:
+1. The 1.7.2 patch in the Backlog below (owner deferred it; plan it first, then release as usual).
+2. A public demo project at level 2.
+3. A long-form explainer.
 
 ## Backlog
 
