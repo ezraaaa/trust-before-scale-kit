@@ -53,15 +53,16 @@ Each level keeps everything below it.
   green (`--match-head-commit`) and tests the gate log's exit line in the same `&&` chain; an existing
   gate log must name that head. Scripts for higher levels report "not adopted". One agent at a time.
 - **Level 2: feature map.** `feature-map.mjs` checks that every screen or route found in your source
-  has an entry with a check, and pending entries fail on purpose. `doctor.mjs` checks the map and its
-  sources exist.
+  is accounted for: either mapped, or listed in `notMappedYet` with a reason. A new screen fails until
+  you do one or the other. `doctor.mjs` checks the map and its sources exist.
 - **Level 3: proven reviews and learning.** `skill-eval.mjs` runs your review skills against seeded
   faults and `--check` fails when a record is missing, stale or red. `learn.mjs` records mistakes (the
   hook records its own blocks and `git revert`), and `doctor.mjs` reports repeating ones. `doctor.mjs`
   also checks the eval suites, their skills and an independent judge.
 - **Level 4: scale.** `lanes.mjs` allows up to `autopilot.maxLanes` agents at once, and drops to one
-  while any eval is red or stale, a self-merge review is owed, a hook skip is unacknowledged, a check
-  did not hold, or too many mistakes repeat. The self-merge lane becomes available for low-risk paths.
+  while any eval is red or stale, the feature map check fails, a self-merge review is owed, a hook skip
+  is unacknowledged, a check did not hold, or too many mistakes repeat. The self-merge lane becomes
+  available for low-risk paths, but stays off until you set `selfMerge.enabled` after accepting the ADR.
 
 #### Changing your level
 
@@ -142,7 +143,8 @@ calls of its own; it only runs the tools you configure.
 4. Edit feature discovery for your source tree, then run
    `node scripts/tbs/feature-map.mjs --init`. Fill in the pending screens in
    `docs/feature-map.json`, including roles, journeys and expected results. Run
-   `node scripts/tbs/feature-map.mjs` to check coverage; pending entries deliberately fail.
+   `node scripts/tbs/feature-map.mjs` to check coverage; a screen that is neither mapped nor listed in
+   `notMappedYet` with a reason fails.
 5. Configure a project review skill at the suite's `skills` path, its `reviewPrompt`,
    and a reachable base branch (`develop` by default). Run
    `node scripts/tbs/skill-eval.mjs routine --dry-run` to validate seeds, then
