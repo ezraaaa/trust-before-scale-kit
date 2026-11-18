@@ -54,7 +54,8 @@ export function laneAllowance({ root = ROOT, config = loadConfig(root),
       reasons.push(`feature map check is red: ${lines.join("; ")}`);
     }
   } catch (error) { reasons.push(`could not check feature map: ${error.message}`); }
-  const skips = owedLines.filter((line) => line.startsWith("HOOK SKIP\t"));
+  // A failed GitHub call and its offline retry can both log the same skip: report each once.
+  const skips = [...new Set(owedLines.filter((line) => line.startsWith("HOOK SKIP\t")))];
   if (skips.length) reasons.push(`unreviewed hook skips after acknowledgement, since the oldest owed PR (all unacknowledged if none owed): ${skips.join("; ")}`);
   const result = { allowed: reasons.length ? 1 : max, max, reasons: reasons.map((reason) => reason.replace(/[\r\n]+/g, " ")) };
   if (notes.length) result.notes = notes;

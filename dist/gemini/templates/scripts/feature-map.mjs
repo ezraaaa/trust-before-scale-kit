@@ -95,7 +95,8 @@ export function discover(root, sources) {
         ? [file.replaceAll("\\", "/").match(new RegExp(source.pathItem))?.[1]].filter((x) => x !== undefined)
           .map((route) => {
             if (input.preset === "nextjs-app" && !input.pathItem) {
-              route = route.split("/").filter(segment => !/^\([^)]+\)$/.test(segment)).join("/");
+              // (group) and @slot folders are not URL segments.
+              route = route.split("/").filter(segment => !/^\([^)]+\)$|^@/.test(segment)).join("/");
             }
             return (source.id ?? "{item}").replace("{item}", route || "/").replace("{label}", source.label ?? "");
           })

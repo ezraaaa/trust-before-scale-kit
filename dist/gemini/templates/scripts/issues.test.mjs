@@ -116,6 +116,7 @@ test('owed lists local skips when GitHub search fails and lanes stay capped', ()
  const allowance = laneAllowance({ root, config, ghRun, evalCheck: () => 0 });
  assert.equal(allowance.allowed, 1);
  assert.match(allowance.reasons.join(' '), /unreviewed hook skips.*offline reason/);
+ assert.equal(allowance.reasons.join(' ').split('offline reason').length - 1, 1, 'each skip reported once');
  assert.deepEqual(output, [`HOOK SKIP\t${line}`]);
 }));
 
