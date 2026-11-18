@@ -45,6 +45,24 @@ the check, and notices when a check stops holding.
 Set `"level"` in the config; scripts above your level say "not adopted" instead of failing.
 See [recipes](docs/recipes/) for worked scenarios.
 
+#### What each level does
+
+Each level keeps everything below it.
+
+- **Level 1: merge gate.** The hook blocks `gh pr merge` unless the command pins the head that went
+  green (`--match-head-commit`) and tests the gate log's exit line in the same `&&` chain; an existing
+  gate log must name that head. Scripts for higher levels report "not adopted". One agent at a time.
+- **Level 2: feature map.** `feature-map.mjs` checks that every screen or route found in your source
+  has an entry with a check, and pending entries fail on purpose. `doctor.mjs` checks the map and its
+  sources exist.
+- **Level 3: proven reviews and learning.** `skill-eval.mjs` runs your review skills against seeded
+  faults and `--check` fails when a record is missing, stale or red. `learn.mjs` records mistakes (the
+  hook records its own blocks and `git revert`), and `doctor.mjs` reports repeating ones. `doctor.mjs`
+  also checks the eval suites, their skills and an independent judge.
+- **Level 4: scale.** `lanes.mjs` allows up to `autopilot.maxLanes` agents at once, and drops to one
+  while any eval is red or stale, a self-merge review is owed, a hook skip is unacknowledged, a check
+  did not hold, or too many mistakes repeat. The self-merge lane becomes available for low-risk paths.
+
 #### Changing your level
 
 1. In `.agents/trust-before-scale.json` (or the older `.claude/trust-before-scale.json`), set `"level"`
