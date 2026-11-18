@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.7.1
 
 - Refuse to overwrite untracked update targets, including ignored files.
 - Create update branches from the fetched integration branch with Git Flow naming and a `--branch-name` override.
