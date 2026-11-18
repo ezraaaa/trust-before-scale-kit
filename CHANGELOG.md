@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Claude Code, Codex, and Gemini CLI can show a session-start update notice with the project update command and an optional daily release check. Doctor reports the project kit version.
+
 ## 1.5.2
 
 Kit git calls are safe inside git hooks, plus fixes from reviewing the 1.5.1 upgrades.

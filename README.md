@@ -364,10 +364,21 @@ claude plugin update trust-before-scale@trust-before-scale-kit
 node "$TBS_PLUGIN/bin/tbs-init" --update
 ```
 
-Toggle marketplace auto-update in `/plugin` under marketplace settings. A pinned release
-stays pinned until you change its source ref. Project updates replace shared scripts and the
-brief template; settings, eval records and project notes stay yours. Re-run evals when their
+For new plugin releases, use Claude Code’s `/plugin` → **Marketplaces** → select
+`trust-before-scale-kit` → **Enable auto-update**. A pinned release stays pinned until you
+change its source ref. See [Claude Code plugin updates](https://code.claude.com/docs/en/discover-plugins#update-installed-plugins).
+
+When the installed plugin is newer than the project's copy, the session-start notice begins
+“Trust before scale 1.5.2 is installed; this project uses 1.5.1.” It includes the current
+absolute installer command and release notes. Run the command from the repo root on a new
+branch, then run `node scripts/tbs/doctor.mjs` and the project’s gates and open a PR.
+Project updates replace shared scripts and the brief template. Re-run evals when their
 inputs or runner change.
+
+To also check GitHub for a newer plugin release, add `"updateCheck": { "latestRelease": true }`
+to the project’s kit config. The setting defaults to off. When enabled, the hook checks via
+`gh` at most once every 24 hours per Git repository with a two-second timeout.
+See [host support](docs/harnesses.md#session-start-update-notice).
 
 Uninstall with `claude plugin uninstall trust-before-scale@trust-before-scale-kit`.
 Vendored project files remain: review and remove `scripts/tbs`, the config, installed eval
