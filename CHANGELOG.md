@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+1. Added the `update` skill and `node scripts/tbs/update.mjs` to update the project kit from an installed plugin, guard protected branches and tracked changes, and run doctor. Session-start notices suggest the short commands when available.
+
 ## 1.6.0
 
 Update notice: users are told when a project's kit is behind, with the command to update.

@@ -32,6 +32,8 @@ test("installer updates only shared files and preserves project-owned files", ()
   assert.equal(readFileSync(join(root, "scripts/tbs/VERSION"), "utf8").trim(), version);
   const owned = [".claude/trust-before-scale.json", "docs/trust-before-scale/enforcers.md", "docs/trust-before-scale/ADR-draft.md", "docs/trust-before-scale/NOTES.md", "docs/feature-map.json", "evals/routine/result.json"];
   for (const path of owned) put(path, `Project owns ${path}\n`);
+  assert.ok(existsSync(join(root, "scripts/tbs/update.mjs")));
+  rmSync(join(root, "scripts/tbs/update.mjs"));
   rmSync(join(root, "scripts/tbs/lanes.mjs"));
   put("scripts/tbs/VERSION", "1.0.0\n");
   put("scripts/tbs/config.mjs", "old script\n");
@@ -40,6 +42,7 @@ test("installer updates only shared files and preserves project-owned files", ()
   assert.ok(output.includes(`1.0.0 → ${version}`));
   assert.match(output, /updated\s+scripts\/tbs\/config.mjs/);
   assert.equal(readFileSync(join(root, "scripts/tbs/lanes.mjs"), "utf8"), readFileSync(resolve(dirname(installer), "../templates/scripts/lanes.mjs"), "utf8"));
+  assert.equal(readFileSync(join(root, "scripts/tbs/update.mjs"), "utf8"), readFileSync(resolve(dirname(installer), "../templates/scripts/update.mjs"), "utf8"));
   assert.match(output, /unchanged\s+scripts\/tbs\/free-ports.mjs/);
   for (const path of owned) assert.equal(readFileSync(join(root, path), "utf8"), `Project owns ${path}\n`);
   assert.equal(readFileSync(join(root, "scripts/tbs/VERSION"), "utf8").trim(), version);
