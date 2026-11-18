@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.2
+
+Fixes the lane gate's owed-review check and aligns the eval judge with how evidence is matched.
+
+- Trim the repository name in the owed self-merge search. `lanes.mjs` passed raw `gh` output, so the trailing newline made GitHub reject the query (HTTP 422) and every level-4 project capped at one lane.
+- The eval judge prompt now asks for the file basename and at least one `mustName` token, matching how results are scored. `mustName` tokens are literal, case-insensitive substrings.
+- New eval records use evidence rule 3. `--check` reports older records as stale: rerun each suite after updating.
+- A failed eval case stores the kept review path relative to the repository, not as an absolute path.
+
 ## 1.7.1
 
 - Refuse to overwrite untracked update targets, including ignored files.
