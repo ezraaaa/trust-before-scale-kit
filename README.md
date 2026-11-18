@@ -111,7 +111,7 @@ gemini extensions install https://github.com/ezraaaa/trust-before-scale-kit --re
 Antigravity users can import the Claude plugin or the Gemini extension with `agy plugin import`.
 Per-tool details, including what has and hasn't been tested on each, are in [harnesses](docs/harnesses.md).
 
-To pin a release, add `#v1.6.0` to the repository source (`--ref v1.6.0` for Gemini).
+To pin a release, add `#v1.7.0` to the repository source (`--ref v1.7.0` for Gemini).
 
 ## Requirements
 
