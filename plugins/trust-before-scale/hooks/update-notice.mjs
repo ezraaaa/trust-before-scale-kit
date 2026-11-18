@@ -108,10 +108,20 @@ export function notice(input, { host = 'claude', runGh = execFileSync, now = Dat
 
     const messages = [];
     if (older(project, installed)) {
-      const path = join(plugin, 'bin/tbs-init').replace(/[\\"$`]/g, '\\$&');
-      const flag = hasCodexHook(root) ? ' --codex-hook' : '';
-      messages.push(`Trust before scale ${installed} is installed; this project uses ${project}. To update, on a new branch:\n` +
-        `From the repo root, run:\nnode "${path}" --update${flag}\nThen run node scripts/tbs/doctor.mjs and the project's gates, and open a PR.\n` +
+      let instructions;
+      if (existsSync(join(root, 'scripts/tbs/update.mjs'))) {
+        const skill = host === 'claude'
+          ? 'run /trust-before-scale:update in Claude Code (or ask your agent to use the update skill)'
+          : 'ask your agent to use the update skill';
+        instructions = `To update, ${skill}, or in a terminal: node scripts/tbs/update.mjs --branch`;
+      } else {
+        const path = join(plugin, 'bin/tbs-init').replace(/[\\"$`]/g, '\\$&');
+        const flag = hasCodexHook(root) ? ' --codex-hook' : '';
+        instructions = `To update, on a new branch:\nFrom the repo root, run:\nnode "${path}" --update${flag}\n` +
+          "Then run node scripts/tbs/doctor.mjs and the project's gates, and open a PR.\n" +
+          'After this update, future updates are just node scripts/tbs/update.mjs.';
+      }
+      messages.push(`Trust before scale ${installed} is installed; this project uses ${project}. ${instructions}\n` +
         `Release notes: https://github.com/${repository}/releases/tag/v${installed}`);
     }
     if (config.updateCheck?.latestRelease === true) {

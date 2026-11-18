@@ -68,7 +68,7 @@ test('compares numeric components and gives the exact update command from the re
   const stdout = run(input, { env: { ...process.env, GIT_DIR: '/nonexistent' } });
   assert.ok(stdout, '1.9.0 should trigger a notice with 1.10.0 installed');
   const result = JSON.parse(stdout);
-  assert.equal(result.systemMessage, `Trust before scale 1.10.0 is installed; this project uses 1.9.0. To update, on a new branch:\nFrom the repo root, run:\nnode "${plugin}/bin/tbs-init" --update\nThen run node scripts/tbs/doctor.mjs and the project's gates, and open a PR.\nRelease notes: https://github.com/ezraaaa/trust-before-scale-kit/releases/tag/v1.10.0`);
+  assert.equal(result.systemMessage, `Trust before scale 1.10.0 is installed; this project uses 1.9.0. To update, on a new branch:\nFrom the repo root, run:\nnode "${plugin}/bin/tbs-init" --update\nThen run node scripts/tbs/doctor.mjs and the project's gates, and open a PR.\nAfter this update, future updates are just node scripts/tbs/update.mjs.\nRelease notes: https://github.com/ezraaaa/trust-before-scale-kit/releases/tag/v1.10.0`);
   assert.deepEqual(result.hookSpecificOutput, {
     hookEventName: 'SessionStart',
     additionalContext: result.systemMessage + "\nOffer to do this; do not update without the user's go-ahead.",
@@ -78,6 +78,21 @@ test('compares numeric components and gives the exact update command from the re
     systemMessage: result.systemMessage,
     hookSpecificOutput: { additionalContext: result.hookSpecificOutput.additionalContext },
   });
+});
+
+test('recommends the vendored updater and the host-appropriate skill', async t => {
+  const { put, check } = await fixture(t);
+  put(configPath, '{}');
+  put(versionPath, '1.9.0');
+  put('scripts/tbs/update.mjs', '');
+  for (const host of ['claude', 'codex', 'gemini', 'cursor']) {
+    const skill = host === 'claude'
+      ? 'run /trust-before-scale:update in Claude Code (or ask your agent to use the update skill)'
+      : 'ask your agent to use the update skill';
+    const { systemMessage } = check({ host });
+    assert.ok(systemMessage.includes(`To update, ${skill}, or in a terminal: node scripts/tbs/update.mjs --branch`));
+    assert.ok(!systemMessage.includes('bin/tbs-init'));
+  }
 });
 
 test('adds --codex-hook only for an existing kit entry, including a moved kit', async t => {
