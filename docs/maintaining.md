@@ -95,7 +95,7 @@ Put Codex worktrees under `~/Development/tools/tbs-kit-<lane>` (its sandbox only
 review, then commit and merge one lane at a time. Each brief lists the lane's allowed files with full
 paths, including any existing test files the lane may need to update.
 
-## State (18 Nov 2026)
+## State (19 Nov 2026)
 
 1.7.2 is released: tag `v1.7.2` on `main`, with the `gemini` branch published. This public repository
 starts from a fresh history at 1.5.0; earlier history stays private with the owner. Hosted CI runs and is
@@ -110,15 +110,22 @@ confirmed (`plugin_hooks` shows as removed); see `docs/harnesses.md`. Untested s
 Antigravity installs (none installed on the review machine). The kit workflows run on Node 24 action majors
 since 1.7.1.
 
-**Adoption.** The owner's five projects run 1.7.1 (four updated with `update.mjs --branch`, one new install at
-level 4 from the generic profile), each merged into its `develop`. Updating them to 1.7.2 makes their eval
-records stale (evidence rule 3): rerun every suite after the update. Projects update with
+**Adoption.** The owner's five projects run 1.7.2 on their `develop` branches (updated 18 Nov with
+`update.mjs --branch`). Each reran its `routine` suite under evidence rule 3; the records expire for
+`--check --fresh` on 25 Nov 2026, after which lanes cap until each suite is rerun. Projects update with
 `node scripts/tbs/update.mjs --branch` or the `update` skill; the update notice tells them when.
+- One project commits a Codex merge hook (`.codex/hooks.json`, absolute 1.7.2 plugin path). The owner
+  keeps it until #18 is fixed (decision 19 Nov). If that plugin folder is removed, every Codex shell command there
+  is denied until `update.mjs --branch --codex-hook` rewrites the path; the #18 fix must migrate this hook.
+- A project's own eval checks may assume one evidence string per case; kit records store one per repeat
+  (one project needed a one-line fix in its own eval check).
+- In an eval worktree, `linkDirs` link from that worktree's root: link `node_modules` in first, or gate cases fail.
 
 **Handoff for the next session (Codex or Claude).** Nothing is in flight: no open PRs, branches or worktrees.
 Next work, in order:
-1. Update the five projects to 1.7.2 and rerun their eval suites.
-2. The next patch in the Backlog below (owner deferred it; plan it first, then release as usual).
+1. The next patch (1.7.3): open issues #13, #14, #16, #17 and #18, plus the deferred items in the Backlog below.
+   Plan it first, then release as usual. #15 is a design question for the owner.
+2. Rerun each project's eval suite before 25 Nov 2026, or after the 1.7.3 update if it lands first.
 3. A public demo project at level 2.
 4. A long-form explainer.
 
