@@ -28,3 +28,16 @@ test('Codex hook warning is advisory and gives the installer command', () => {
     assert.deepEqual(check(), []);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('a legacy config without level may keep its own feature map; an explicit level must configure one', () => {
+  const root = mkdtempSync(join(tmpdir(), 'tbs-doctor-map-'));
+  try {
+    const run = (config) => { const logs = []; const code = main([], { root, config: { project: 'test', mergeGate: {}, evals: { suites: [] }, ...config }, probe: () => '', log: line => logs.push(line) }); return { code, logs }; };
+    const legacy = run({});
+    assert.ok(legacy.logs.some(l => l.startsWith('NOTE feature map not configured in the kit')), legacy.logs.join('\n'));
+    assert.ok(!legacy.logs.some(l => /FAIL.*feature map configured/.test(l)), legacy.logs.join('\n'));
+    const explicit = run({ level: 2 });
+    assert.equal(explicit.code, 1);
+    assert.ok(explicit.logs.some(l => /feature map configured/.test(l) && !l.startsWith('PASS')), explicit.logs.join('\n'));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
