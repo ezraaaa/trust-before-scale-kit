@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { lstatSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { dirname, join, posix, resolve } from 'node:path';
 
 const validVersion = value => typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value);
 function newer(left, right) {
@@ -68,9 +68,20 @@ function hasCodexHook(root) {
 }
 
 function main(args) {
-  if (args.some(arg => !['--branch', '--codex-hook', '--dry-run'].includes(arg))) {
-    throw new Error('Usage: node scripts/tbs/update.mjs [--branch] [--codex-hook] [--dry-run]');
+  let branchName;
+  const flags = new Set();
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === '--branch-name' && !branchName && args[index + 1] && !args[index + 1].startsWith('-')) {
+      branchName = args[++index];
+    } else if (['--branch', '--codex-hook', '--dry-run'].includes(arg)) {
+      flags.add(arg);
+    } else {
+      throw new Error('Usage: node scripts/tbs/update.mjs [--branch [--branch-name <name>]] [--codex-hook] [--dry-run]');
+    }
   }
+  const createBranch = flags.has('--branch');
+  if (branchName && !createBranch) throw new Error('--branch-name requires --branch.');
   // Clear inherited Git settings and keep status from refreshing the index during a dry run.
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
   env.GIT_OPTIONAL_LOCKS = '0';
@@ -94,7 +105,7 @@ function main(args) {
     return 1;
   }
 
-  const dryRun = args.includes('--dry-run');
+  const dryRun = flags.has('--dry-run');
   const updatable = newer(selected.version, current);
   if (dryRun || process.env.TBS_PLUGIN) {
     if (dryRun) console.log(`Project kit version: ${current}.`);
@@ -109,21 +120,88 @@ function main(args) {
   if (git(root, 'status', '--porcelain=v1', '--untracked-files=no', '--ignore-submodules=untracked')) {
     throw new Error('Tracked changes detected. Commit or stash them before updating.');
   }
+  const optionalGit = (...argv) => {
+    const result = spawnSync('git', argv, { cwd: root, env, encoding: 'utf8' });
+    if (result.error) throw result.error;
+    if (result.status === 1) return undefined;
+    if (result.status !== 0) throw new Error(result.stderr.trim() || `git ${argv.join(' ')} failed`);
+    return result.stdout.trim();
+  };
   const branch = git(root, 'branch', '--show-current');
-  const needsBranch = ['main', 'master', 'develop', ''].includes(branch);
-  const nextBranch = `chore/tbs-kit-${selected.version}`;
-  if (needsBranch && !args.includes('--branch')) {
-    throw new Error(`Cannot update on ${branch || 'detached HEAD'}. Run: git switch -c ${nextBranch}`);
+  const develop = optionalGit('config', '--get', 'gitflow.branch.develop');
+  const production = optionalGit('config', '--get', 'gitflow.branch.master');
+  const prefix = optionalGit('config', '--get', 'gitflow.prefix.feature') ?? 'chore/';
+  const nextBranch = branchName ?? `${prefix}tbs-kit-${selected.version}`;
+  if (!createBranch && ['', 'main', 'master', 'develop', develop, production].includes(branch)) {
+    const hint = `node scripts/tbs/update.mjs --branch${flags.has('--codex-hook') ? ' --codex-hook' : ''}`;
+    throw new Error(`Cannot update on ${branch || 'detached HEAD'}. Run: ${hint} (creates ${nextBranch})`);
   }
-  const installerArgs = ['--update'];
-  if (args.includes('--codex-hook') || hasCodexHook(root)) installerArgs.push('--codex-hook');
+
+  const checkTargets = () => {
+    const installerArgs = ['--update'];
+    if (flags.has('--codex-hook') || hasCodexHook(root)) installerArgs.push('--codex-hook');
+    // Earlier installers ignore unknown flags and would install in the current directory.
+    const scratch = mkdtempSync(join(realpathSync(tmpdir()), 'tbs-targets-'));
+    let targets;
+    try {
+      const result = spawnSync(process.execPath, [selected.installer, ...installerArgs, '--list-targets'],
+        { cwd: scratch, env: { ...env, GIT_CEILING_DIRECTORIES: dirname(scratch) }, encoding: 'utf8' });
+      if (result.status !== 0) throw new Error(result.error?.message ?? result.stderr.trim());
+      targets = JSON.parse(result.stdout);
+    } catch (error) {
+      throw new Error(`Could not list installed tbs-init update targets: ${error.message}`);
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+    if (!Array.isArray(targets) || !targets.length || targets.some(path => typeof path !== 'string' ||
+        !path || posix.isAbsolute(path) || path.split('/').some(part => ['.', '..', ''].includes(part)))) {
+      throw new Error('Installed tbs-init did not provide valid update targets.');
+    }
+    const tracked = new Set(execFileSync('git', ['ls-files', '-z'], { cwd: root, env, encoding: 'utf8' }).split('\0'));
+    const conflicts = new Set();
+    for (const target of targets) {
+      for (let path = target; path !== '.'; path = dirname(path)) {
+        let stat;
+        try { stat = lstatSync(join(root, path)); }
+        catch (error) {
+          if (['ENOENT', 'ENOTDIR'].includes(error.code)) continue;
+          throw error;
+        }
+        if (stat.isSymbolicLink() || (path === target ? !tracked.has(path) || !stat.isFile() : !stat.isDirectory())) {
+          conflicts.add(path);
+        }
+      }
+    }
+    if (conflicts.size) throw new Error(`Cannot update over untracked or unsafe installer paths:\n${[...conflicts].map(path => `- ${path}`).join('\n')}`);
+    return installerArgs;
+  };
+
+  let installerArgs = checkTargets();
+  if (createBranch) {
+    if (!optionalGit('config', '--get', 'remote.origin.url')) throw new Error('Cannot create an update branch: no origin remote.');
+    git(root, 'check-ref-format', '--branch', nextBranch);
+  }
   if (dryRun) {
-    console.log(`Dry run: update ${current} → ${selected.version}; ${needsBranch ? `create ${nextBranch}` : `stay on ${branch}`}.`);
+    console.log(`Dry run: update ${current} → ${selected.version}; ${createBranch ? `create ${nextBranch} from the fetched integration branch` : `stay on ${branch}`}.`);
     console.log(`Would run tbs-init ${installerArgs.join(' ')} and node scripts/tbs/doctor.mjs.`);
     return 0;
   }
 
-  if (needsBranch) git(root, 'switch', '-c', nextBranch);
+  if (createBranch) {
+    const fetched = spawnSync('git', ['fetch', '--prune', 'origin', '+refs/heads/*:refs/remotes/origin/*'],
+      { cwd: root, env, encoding: 'utf8' });
+    if (fetched.status !== 0) throw new Error(`Cannot fetch origin: ${fetched.error?.message ?? fetched.stderr.trim()}`);
+    const hasDevelop = optionalGit('show-ref', '--verify', '--quiet', 'refs/remotes/origin/develop') !== undefined;
+    const integration = develop || (hasDevelop ? 'develop' : undefined) ||
+      git(root, 'ls-remote', '--symref', 'origin', 'HEAD').match(/^ref: refs\/heads\/(.+)\tHEAD$/m)?.[1];
+    if (!integration) throw new Error('Cannot determine the default branch on origin.');
+    const baseRef = `refs/remotes/origin/${integration}`;
+    if (optionalGit('show-ref', '--verify', '--quiet', baseRef) === undefined) {
+      throw new Error(`Integration branch origin/${integration} was not found after fetching origin.`);
+    }
+    git(root, 'switch', '--no-overwrite-ignore', '--no-track', '-c', nextBranch, baseRef);
+    installerArgs = checkTargets();
+  }
   const installerStatus = runNode(root, selected.installer, ...installerArgs);
   if (installerStatus !== 0) return installerStatus;
   const doctorStatus = runNode(root, 'scripts/tbs/doctor.mjs');
