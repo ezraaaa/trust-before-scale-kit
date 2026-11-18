@@ -123,7 +123,7 @@ function skipPaths(root) {
 }
 
 function owedPullRequests(ghRun, label, reviewedLabel) {
-  const repo = ghRun(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
+  const repo = ghRun(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]).trim();
   const query = `repo:${repo} is:pr is:merged label:${JSON.stringify(label)} -label:${JSON.stringify(reviewedLabel)}`;
   const pages = JSON.parse(ghRun(["api", "-X", "GET", "search/issues", "-f", `q=${query}`, "-f", "per_page=100", "--paginate", "--slurp"]));
   const hits = pages.flatMap(page => page.items);

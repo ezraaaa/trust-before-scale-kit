@@ -8,7 +8,9 @@ only receives releases.
 To add an eval, create `profiles/<profile>/evals/<suite>/cases/<id>/case.json` and
 `seed.patch` under `plugins/trust-before-scale/`. The JSON names `id`, `rule`,
 `mustName`, `file`, `branch`, `message` and `expect` (`review` or `gate`). Gate cases
-also name `gate`. Use an ordinary commit message and branch that do not reveal the
+also name `gate`. For review cases, the quoted evidence must contain the file
+basename and at least one `mustName` token. Tokens match as literal, case-insensitive
+substrings. Use an ordinary commit message and branch that do not reveal the
 fault. The patch must apply to the configured base; new-file seeds are portable.
 Run `node scripts/tbs/skill-eval.mjs <suite> --dry-run` in an installed project,
 then the actual eval after configuring its review skill. Never weaken or skip tests.
