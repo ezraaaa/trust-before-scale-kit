@@ -9,15 +9,15 @@ description: "Run, read or extend the evals that prove this project's review ski
   It writes `evals/<suite>/result.json`; commit it. Each review case runs the review headless (the configured suite `reviewer`, default `claude`) and a
   configured judge (default `codex`) on a different model, so a full run costs real tokens: run it when the skill changes and weekly.
 - **One case:** `--case <id>` prints the result and never writes the record.
-- **Check:** `--check` fails when a skill changed, a case failed, the record is missing, or its `settingsHash`
+- **Check:** `--check` fails when a skill changed, a case failed, the record is missing, its `evidenceRule` differs from 3, or its `settingsHash`
   is missing or differs from the effective review prompt/model, judge (including `TBS_JUDGE_MODEL`), repeats,
   base or link directories; `--check --fresh` also fails a record older than `maxAgeDays`.
 - **Add a case** after any miss: `evals/<suite>/cases/<id>/case.json` and `seed.patch`, a real diff against the
   current base that a person could plausibly ship. Neither the added lines, the branch name nor the message may say
   any whole word (case-insensitive) from: eval, seed, test, judge, rubric, score, candidate, benchmark,
   planted, fixture. Unchanged context is excluded; identifiers such as `testCount` are allowed. `expect` is
-  `gate` when a command already catches it (name the command), else `review` with `rule`, `file` and the words
-  a correct finding uses (`mustName`).
+  `gate` when a command already catches it (name the command), else `review` with `rule`, `file` and `mustName` tokens. The evidence must quote the review
+  and contain the file basename and at least one `mustName` token. Tokens match as literal, case-insensitive substrings.
 - **A seed that no longer applies** is rewritten against the current code. Never delete a case to make a suite green.
 - A failing case is a finding about the skill: fix the skill, rerun, and commit the new record with the skill change.
 - **Dry run:** `<suite> --dry-run` prints the effective judge and checks each patch with `git apply --check`
@@ -25,7 +25,7 @@ description: "Run, read or extend the evals that prove this project's review ski
   empty suite, with a hint to add 3–8 cases from real failures.
 - **Judge:** suite `judgeModel` is optional. `TBS_JUDGE_MODEL` takes precedence; with neither set, Codex uses
   its default (no `--model` argument).
-- **Repeats:** optional suite `repeats` is a positive integer and defaults to 1. Every repeat must pass.
+- **Repeats:** optional suite `repeats` is a positive integer and defaults to 2. Every repeat must pass.
   Each case in `result.json` records `passes` and `repeats`; `--check` reads an old record without `repeats` as one run and requires
   a new run when the configured repeat count changes.
 

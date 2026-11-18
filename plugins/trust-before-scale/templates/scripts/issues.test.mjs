@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { main as evaluate, judged, loadCases, casesHash, skillHash, settingsHash } from './skill-eval.mjs';
 import { laneAllowance } from './lanes.mjs';
 import { run } from './self-merge.mjs';
@@ -72,22 +72,81 @@ test('worktrees share hook skips, migrate legacy logs once and audit acknowledge
  assert.ok(!call(root,['--owed']).some(x=>x.startsWith('HOOK SKIP')));
 }));
 
-test('legacy eval records stay valid until rerun; new runs default to two repeats',()=>temporary(root=>{
- const put=(path,data)=>{mkdirSync(dirname(join(root,path)),{recursive:true});writeFileSync(join(root,path),data);};
- put('src/x.ts','const count = 1;\n'); put('skills/review/SKILL.md','Review the change.\n');
- execFileSync('git',['add','.'],{cwd:root}); execFileSync('git',['commit','-qm','initial'],{cwd:root});
- const suite={name:'routine',base:'HEAD',skills:['skills/review']};
- put('evals/routine/cases/count/case.json',JSON.stringify({id:'count',expect:'gate',rule:'count stays one',mustName:['count'],file:'src/x.ts',gate:"printf 'src/x.ts incorrect\\n'; exit 1"}));
- put('evals/routine/cases/count/seed.patch','diff --git a/src/x.ts b/src/x.ts\n--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1 +1 @@\n-const count = 1;\n+const count = 2;\n');
- const record={date:new Date().toISOString(),skillHash:skillHash(root,suite),casesHash:casesHash(loadCases(root,'routine')),settingsHash:settingsHash(suite),cases:[{id:'count',pass:true}]};
- put('evals/routine/result.json',JSON.stringify(record));
- const config={evals:{suites:[suite]}}, lines=[];
- assert.equal(evaluate(['--check'],{root,config,log:x=>lines.push(x)}),0);
- assert.ok(lines.some(x=>x.includes('predates stricter')));
- assert.equal(evaluate(['routine'],{root,config,log:()=>{}}),0);
- const next=JSON.parse(readFileSync(join(root,'evals/routine/result.json')));
- assert.equal(next.evidenceRule,2);assert.equal(next.cases[0].repeats,2);
- assert.equal(evaluate(['--check'],{root,config,log:()=>{}}),0);
+function evalFixture(root, expect) {
+ const put = (path, data) => {
+   mkdirSync(dirname(join(root, path)), { recursive: true });
+   writeFileSync(join(root, path), data);
+ };
+ put('src/x.ts', 'const count = 1;\n');
+ put('skills/review/SKILL.md', 'Review the change.\n');
+ execFileSync('git', ['add', '.'], { cwd: root });
+ execFileSync('git', ['commit', '-qm', 'initial'], { cwd: root });
+ const suite = { name: 'routine', base: 'HEAD', skills: ['skills/review'] };
+ const item = { id: 'count', expect, rule: 'count stays one', mustName: ['COUNT', 'off-by-one'], file: 'src/x.ts' };
+ if (expect === 'gate') item.gate = "printf 'src/x.ts incorrect\\n'; exit 1";
+ put('evals/routine/cases/count/case.json', JSON.stringify(item));
+ put('evals/routine/cases/count/seed.patch', 'diff --git a/src/x.ts b/src/x.ts\n--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1 +1 @@\n-const count = 1;\n+const count = 2;\n');
+ return { suite, config: { evals: { suites: [suite] } }, resultPath: join(root, 'evals/routine/result.json') };
+}
+
+test('check rejects records predating evidence rule 3', () => temporary(root => {
+ const { suite, config, resultPath } = evalFixture(root, 'gate');
+ for (const evidenceRule of [2, undefined]) {
+   const strict = evidenceRule === 2;
+   const repeats = strict ? 2 : 1;
+   const record = {
+     evidenceRule, date: new Date().toISOString(), skillHash: skillHash(root, suite),
+     casesHash: casesHash(loadCases(root, 'routine')), settingsHash: settingsHash(suite, strict),
+     cases: [{ id: 'count', pass: true, repeats, passes: repeats }],
+   };
+   writeFileSync(resultPath, JSON.stringify(record));
+   const lines = [];
+   const status = evaluate(['--check'], { root, config, log: line => lines.push(line) });
+   assert.match(lines.join('\n'), /record predates evidence rule 3 \(quote-only matching\): run it again/);
+   assert.equal(status, 1);
+ }
+}));
+
+test('new eval records use rule 3 and default to two repeats', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ assert.equal(evaluate(['routine'], { root, config, log: () => {} }), 0);
+ const record = JSON.parse(readFileSync(resultPath));
+ assert.equal(record.evidenceRule, 3);
+ assert.equal(record.cases[0].repeats, 2);
+ assert.equal(evaluate(['--check'], { root, config, log: () => {} }), 0);
+}));
+
+function runReview(root, caught) {
+ const { suite, config, resultPath } = evalFixture(root, 'review');
+ Object.assign(suite, { reviewer: 'cursor-agent', judge: 'gemini', repeats: 1, reviewPrompt: 'Review {branch}' });
+ const evidence = 'x.ts sets count to two.';
+ const prompts = [];
+ const run = (command, args, options) => {
+   if (command === 'cursor-agent') return { status: 0, stdout: evidence };
+   if (command === 'gemini') {
+     prompts.push(args[1]);
+     return { status: 0, stdout: JSON.stringify({ caught, evidence }) };
+   }
+   return spawnSync(command, args, { ...options, encoding: 'utf8' });
+ };
+ const status = evaluate(['routine'], { root, config, run, log: () => {} });
+ return { status, prompts, result: JSON.parse(readFileSync(resultPath)).cases[0] };
+}
+
+test('judge prompt asks for at least one term and a basename plus one term passes', () => temporary(root => {
+ const { status, prompts, result } = runReview(root, true);
+ assert.equal(status, 0, result.evidence);
+ assert.equal(result.pass, true);
+ assert.equal(prompts.length, 1);
+ assert.match(prompts[0], /at least one of the mustName terms/);
+}));
+
+test('failed review records a repo-relative path to the kept review', () => temporary(root => {
+ const { status, prompts, result } = runReview(root, false);
+ assert.equal(status, 1);
+ assert.equal(prompts.length, 1, result.evidence);
+ assert.ok(!result.evidence.includes(root), result.evidence);
+ assert.match(result.evidence, /\(full review: \.git\/tbs-reviews\/[^)]+\)/);
 }));
 
 test('metadata is accepted at every object depth while typos and required fields fail',()=>{
