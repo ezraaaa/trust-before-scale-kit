@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.6.0
 
-- Claude Code, Codex, and Gemini CLI can show a session-start update notice with the project update command and an optional daily release check. Doctor reports the project kit version.
+Update notice: users are told when a project's kit is behind, with the command to update.
+
+1. Claude Code, Codex, and Gemini CLI can show a session-start update notice with the project update command and an optional daily release check. Doctor reports the project kit version.
 
 ## 1.5.2
 
