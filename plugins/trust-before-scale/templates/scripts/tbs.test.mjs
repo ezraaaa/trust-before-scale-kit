@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { laneAllowance, main as lanesMain } from "./lanes.mjs";
 import { evidenceFor, loadConfig } from "./config.mjs";
@@ -472,7 +472,9 @@ test("a failed review case keeps the full review text and points to it", () => i
     const evidence = JSON.parse(output.find((line) => line.startsWith("{"))).evidence;
     assert.equal(evidence.length, 2);
     for (const entry of evidence) {
-      const kept = entry.match(/\(full review: (.+)\)$/)[1];
+      const storedPath = entry.match(/\(full review: (.+)\)$/)[1];
+      assert.equal(isAbsolute(storedPath), false);
+      const kept = resolve(root, storedPath);
       const text = readFileSync(kept, "utf8");
       assert.ok(text.includes("The zero should be an em dash."));
       assert.ok(text.includes('"caught":false'));
@@ -619,9 +621,13 @@ test("kept reviews default to the project git common directory", () => inRepo(({
     }
     return reviewRunner(command, args, options);
   });
-  const kept = result.evidence.match(/\(full review: (.+)\)$/)[1];
-  try { assert.equal(dirname(kept), resolve(root, git("rev-parse", "--git-common-dir").trim(), "tbs-reviews")); }
-  finally { rmSync(kept, { force: true }); }
+  const storedPath = result.evidence.match(/\(full review: (.+)\)$/)[1];
+  assert.equal(isAbsolute(storedPath), false);
+  const kept = resolve(root, storedPath);
+  try {
+    assert.equal(dirname(kept), resolve(root, git("rev-parse", "--git-common-dir").trim(), "tbs-reviews"));
+    assert.ok(existsSync(kept));
+  } finally { rmSync(kept, { force: true }); }
 }));
 
 test("vendored tests contain no conditional installer skip", () => {
@@ -639,8 +645,9 @@ function laneFixture({ root, put }) {
   const cfg = { ...config, autopilot: { maxLanes: 4 }, evals: { suites: [suite] },
     featureMap: { file: "docs/feature-map.json", sources: [{ dir: "src", ext: ".ts", item: "const (\\w+)", id: "{item}" }] } };
   put("docs/feature-map.json", JSON.stringify({ notMappedYet: [{ id: "count", reason: "pending" }] }));
-  const record = { date: new Date().toISOString(), skillHash: skillHash(root, suite),
-    settingsHash: settingsHash(suite), casesHash: casesHash(loadCases(root, suite.name)), cases: [{ id: "count", pass: true }] };
+  const record = { evidenceRule: 3, date: new Date().toISOString(), skillHash: skillHash(root, suite),
+    settingsHash: settingsHash(suite, true), casesHash: casesHash(loadCases(root, suite.name)),
+    cases: [{ id: "count", pass: true, passes: 2, repeats: 2 }] };
   put("evals/routine/result.json", JSON.stringify(record));
   return { cfg, record, options: { root, config: cfg, ghRun: owedGh(() => []) } };
 }
