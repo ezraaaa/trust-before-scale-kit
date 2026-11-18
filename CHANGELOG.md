@@ -1,13 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.5.2
+
+Kit git calls are safe inside git hooks, plus fixes from reviewing the 1.5.1 upgrades.
 
 1. `doctor.mjs` no longer fails a config without a `level` that keeps its own feature map, matching `lanes.mjs`; it prints a NOTE instead. An explicit level of 2 or more still requires `featureMap`.
-
 2. Vendored scripts, tests, and the installer clear inherited Git repository settings so hook runs use the intended checkout and leave its Git metadata intact.
 3. The owed-review audit lists local hook skips when GitHub is unavailable and reports skip-log migration failures.
 4. Skill evals require the quoted evidence to name the target file and a required term; the judge may quote several consecutive lines.
 5. The Next.js App Router feature-map preset recognizes more page extensions and removes route groups and parallel-route `@slot` folders from route IDs.
+6. README: what each adoption level does, and how to change your level.
 
 ## 1.5.1
 
