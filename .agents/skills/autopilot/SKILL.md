@@ -61,7 +61,8 @@ Park these as a plan for the owner; never merge them unattended:
   Open issues #13, #14, #16, #17, #18, #20, #21, #22 and #24 are bugs in these gates, so the kit must
   not fix its own checks without a human read.
 - Any change to a shipped skill's rules (`plugins/trust-before-scale/skills/`, `rules/`, `profiles/`).
-- Any change to this repo's own governance: the `kit-governance` row (`.agents/trust-before-scale.json`,
+- Any change to this repo's own governance: the `kit-governance` row (`AGENTS.md`, `GEMINI.md`,
+  `.agents/trust-before-scale.json`, `.claude/skills`,
   `.agents/skills/`, `docs/trust-before-scale/routine-extension.md` and `enforcers.md`). An agent never
   loosens its own rules unattended.
 - Any change to the `plugin-manifest` row (`.claude-plugin/`, plugin manifests, `.gitignore`).

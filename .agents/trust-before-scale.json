@@ -121,6 +121,7 @@
       {
         "name": "kit-governance",
         "paths": [
+          "^(AGENTS|GEMINI)\\.md$",
           "^\\.agents/trust-before-scale\\.json$",
           "^\\.agents/skills/",
           "^\\.claude/skills$",

@@ -153,7 +153,7 @@ for (const kind of ['directory', 'symlink']) {
 
 test('routine rows cover tracked files, vendored files and HANDOFF.md', t => {
   const configPath = join(root, '.agents/trust-before-scale.json');
-  if (!existsSync(configPath)) return t.skip('missing .agents/trust-before-scale.json');
+  assert.ok(existsSync(configPath), 'the kit config .agents/trust-before-scale.json is missing');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   const { cwd } = fixture(t);
