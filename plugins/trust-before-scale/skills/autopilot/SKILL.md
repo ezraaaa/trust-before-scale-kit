@@ -19,8 +19,9 @@ Nothing here grants permission to release or deploy.
 
 ## Supervision by adoption level
 
-Supervision lifts one step per adoption level (`level` in the config). A config without `level`, or with a
-`level` that is not 1, 2, 3 or 4, counts as level 1 here and in the scripts: projects opt in to more autonomy. Owner decision, 19 Nov 2026, for
+Supervision lifts one step per adoption level (`level` in the config). A config without `level` counts as level 1, here and
+in the scripts: projects opt in to more autonomy. A `level` that is not 1, 2, 3 or 4 counts as level 1 here;
+the scripts reject that config until it is fixed. Owner decision, 19 Nov 2026, for
 every project, replacing unattended runs at any level: "autopilot level one should only be supervised.
 slowly lift off supervision to level 4". The level caps everything below; the extension and host
 instructions may only be stricter. Only the owner changes the level. Owner decisions, 19 Nov 2026: a
