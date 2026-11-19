@@ -37,7 +37,8 @@ pattern against the allowed-files list. A contradiction there stops the implemen
 
 **Before asking the owner**, check whether a run or the code can answer the question. If so, find out.
 Batch what remains at check-ins, each with the recommended pick, the evidence, the risk, and what happens
-if no answer comes.
+if no answer comes. At adoption level 4, if the owner is not around, park what needs them and keep working
+on what does not; never stop for one open question. Silence or elapsed time is never an answer.
 
 **Scale:** run `node scripts/tbs/lanes.mjs` before adding a lane. Never exceed what it allows.
 

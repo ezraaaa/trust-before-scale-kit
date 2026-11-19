@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- At adoption level 4, `learn` and `method` no longer wait on an absent owner: park what needs their answer or acceptance, with a recommendation, and work on what does not. Absence is never acceptance.
+
 ## 1.7.2
 
 Fixes the lane gate's owed-review check and aligns the eval judge with how evidence is matched.
