@@ -9,29 +9,38 @@ export const missingLeakFileMessage = 'NOT RUN: no .leakcheck.local in this work
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 128 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
 const gitPath = (cwd, arg) => git(cwd, 'rev-parse', arg).replace(/\n$/, '');
 
-export function findLeakFile(cwd) {
+function findScanTarget(cwd, history) {
   try {
-    const top = gitPath(cwd, '--show-toplevel');
-    const local = path.join(top, filename);
-    if (existsSync(local)) return local;
-    const common = path.resolve(cwd, gitPath(cwd, '--git-common-dir'));
-    if (git(cwd, `--git-dir=${common}`, 'rev-parse', '--is-bare-repository').trim() === 'true') return null;
-    const main = path.join(path.dirname(common), filename);
-    return existsSync(main) ? main : null;
+    const insideWorkTree = gitPath(cwd, '--is-inside-work-tree') === 'true';
+    if (!insideWorkTree && (!history || gitPath(cwd, '--is-bare-repository') !== 'true')) return null;
+    const root = gitPath(cwd, insideWorkTree ? '--show-toplevel' : '--absolute-git-dir');
+    const local = path.join(root, filename);
+    if (existsSync(local)) return { root, file: local };
+    if (!insideWorkTree) return null;
+    const [first] = git(cwd, 'worktree', 'list', '--porcelain', '-z').split('\0\0', 1);
+    const [worktree, ...attributes] = first.split('\0');
+    if (!worktree.startsWith('worktree ') || attributes.includes('bare')) return null;
+    const main = path.join(worktree.slice('worktree '.length), filename);
+    return existsSync(main) ? { root, file: main } : null;
   } catch { return null; }
 }
 
+export function findLeakFile(cwd) {
+  return findScanTarget(cwd, false)?.file ?? null;
+}
+
 function main(cwd, args) {
-  const file = findLeakFile(cwd);
-  if (!file) {
+  const history = args.includes('--history');
+  const target = findScanTarget(cwd, history);
+  if (!target) {
     console.log(missingLeakFileMessage);
     return args.includes('--require') ? 78 : 0;
   }
+  const { root, file } = target;
   const patterns = readFileSync(file, 'utf8').split(/\r?\n/).filter(s => s.trim() && !s.startsWith('#')).map(s => new RegExp(s.startsWith('(?i)') ? s.slice(4) : s, s.startsWith('(?i)') ? 'i' : ''));
-  const root = gitPath(cwd, '--show-toplevel');
   let count = 0;
   function check(text, location) { if (patterns.some(p => p.test(text))) { console.error(`Private-name match: ${location}`); count++; } }
-  if (args.includes('--history')) {
+  if (history) {
     for (const commit of git(root, 'rev-list', '--all').trim().split('\n').filter(Boolean)) {
       check(git(root, 'show', '-s', '--format=%B', commit), `${commit}:message`);
       for (const name of git(root, 'ls-tree', '-r', '--name-only', '-z', commit).split('\0').filter(Boolean)) check(name + '\n' + git(root, 'show', `${commit}:${name}`), `${commit}:${name}`);

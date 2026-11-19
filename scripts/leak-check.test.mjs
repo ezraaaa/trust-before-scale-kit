@@ -16,11 +16,11 @@ function fixture(t) {
   return temp;
 }
 
-function repo(t, treeName = 'tree') {
+function repo(t, treeName = 'tree', ...initArgs) {
   const temp = fixture(t);
   const main = path.join(temp, 'main');
   const tree = path.join(temp, treeName);
-  git(temp, 'init', '-q', main);
+  git(temp, 'init', '-q', ...initArgs, main);
   fs.writeFileSync(path.join(main, 'tracked.txt'), 'Acme\n');
   git(main, 'add', 'tracked.txt');
   git(main, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'fixture');
@@ -35,6 +35,31 @@ test('uses the main checkout patterns to scan the linked worktree', t => {
   const result = run(tree);
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.stderr, /Private-name match: tracked\.txt/);
+});
+
+test('ignores patterns beside a separate git directory', t => {
+  const metadata = fixture(t);
+  const { tree } = repo(t, 'tree', '--separate-git-dir', path.join(metadata, 'git'));
+  fs.writeFileSync(path.join(metadata, '.leakcheck.local'), 'AcmeAbsent\n');
+  const result = run(tree, '--require');
+  assert.equal(result.status, 78, result.stdout + result.stderr);
+  assert.match(result.stdout, /^NOT RUN:/);
+});
+
+test('scans commit history from a bare repository with its own patterns', t => {
+  const { main } = repo(t);
+  const dir = fixture(t);
+  const bare = path.join(dir, 'bare.git');
+  git(dir, 'clone', '--bare', main, bare);
+  fs.writeFileSync(path.join(bare, '.leakcheck.local'), 'Acme\n');
+  const commit = git(bare, 'rev-parse', 'HEAD').toString().trim();
+  const history = run(bare, '--history');
+  assert.equal(history.status, 1, history.stdout + history.stderr);
+  assert.ok(history.stderr.includes(`Private-name match: ${commit}:tracked.txt`), history.stderr);
+
+  const workingFiles = run(bare, '--require');
+  assert.equal(workingFiles.status, 78, workingFiles.stdout + workingFiles.stderr);
+  assert.match(workingFiles.stdout, /^NOT RUN:/);
 });
 
 test('the worktree pattern file takes precedence and excludes itself from the scan', t => {
@@ -81,6 +106,7 @@ test('a linked worktree of a bare repo ignores patterns beside the bare repo', t
   const tree = path.join(dir, 'tree');
   git(dir, 'clone', '--bare', main, bare);
   fs.writeFileSync(path.join(dir, '.leakcheck.local'), 'Acme\n');
+  fs.writeFileSync(path.join(bare, '.leakcheck.local'), 'Acme\n');
   git(bare, 'worktree', 'add', '--detach', tree);
   const result = run(tree, '--require');
   assert.equal(result.status, 78, result.stdout + result.stderr);
