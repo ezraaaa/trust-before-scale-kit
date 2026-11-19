@@ -99,6 +99,29 @@ for (const mode of ['check', 'build']) {
     });
   }
 
+  for (const path of ['docs', 'docs/trust-before-scale']) {
+    test(`${mode} rejects a symlink at brief ancestor ${path}`, t => {
+      const { cwd, run } = fixture(t);
+      assert.equal(run().status, 0);
+      const outside = mkdtempSync(join(tmpdir(), 'tbs-build-harness-outside-'));
+      t.after(() => rmSync(outside, { recursive: true, force: true }));
+      const output = join(cwd, path);
+      const target = join(outside, 'target');
+      renameSync(output, target);
+      symlinkSync(target, output, 'dir');
+      const targetFile = join(target, brief.slice(path.length + 1));
+      if (mode === 'build') writeFileSync(targetFile, 'keep this content\n');
+      const original = readFileSync(targetFile);
+
+      const result = run(...args);
+      const after = readFileSync(targetFile);
+      assert.deepEqual(
+        { status: result.status, stderr: result.stderr, outsideUnchanged: after.equals(original) },
+        { status: 1, stderr: `symlink: ${path}\n`, outsideUnchanged: true },
+      );
+    });
+  }
+
   test(`${mode} rejects a regular file at ${vendor}`, t => {
     const { cwd, run } = fixture(t);
     assert.equal(run().status, 0);
