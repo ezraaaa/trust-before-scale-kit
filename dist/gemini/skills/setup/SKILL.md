@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Set up trust before scale in the current project (Acme Mobile, Acme Flutter, or any other repo): copy the scripts, config, eval cases and ADR draft, then wire the checks into the project's gate. Use when the user asks to adopt, install or set up the trust-before-scale workflow in a project."
+description: "Set up trust before scale in a project: copy scripts, config, eval cases and ADR draft, then wire the checks into its gate. Use to adopt, install or set up the workflow."
 ---
 
 # Set up trust before scale in this project

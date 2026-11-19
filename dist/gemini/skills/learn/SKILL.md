@@ -1,6 +1,6 @@
 ---
 name: learn
-description: "Record mistakes and turn repeated failures or checks that did not hold into stronger prevention. Use after review findings, reverts, red gates on merged code, and owner corrections."
+description: "Record mistakes and turn repeats into stronger checks. Use after review findings, reverts, red gates on merged code and owner corrections."
 ---
 
 # Learn from outcomes
