@@ -67,7 +67,22 @@ for (const entry of readdirSync(templateScripts, { withFileTypes: true })) {
 }
 files.set(`${vendor}/config.schema.json`, readFileSync(join(root, plugin, 'schema/config.schema.json')));
 files.set(`${vendor}/VERSION`, `${source.version}\n`);
-files.set('docs/trust-before-scale/brief-template.md', readFileSync(join(root, plugin, 'templates/docs/brief-template.md')));
+const brief = 'docs/trust-before-scale/brief-template.md';
+files.set(brief, readFileSync(join(root, plugin, 'templates/docs/brief-template.md')));
+
+const vendorDir = join(root, vendor);
+const vendorStat = lstatSync(vendorDir, { throwIfNoEntry: false });
+if (vendorStat && !vendorStat.isDirectory()) {
+  console.error(`${vendorStat.isSymbolicLink() ? 'symlink' : 'not a directory'}: ${vendor}`);
+  process.exit(1);
+}
+for (const path of files.keys()) {
+  if (path !== brief && !path.startsWith(`${vendor}/`)) continue;
+  if (lstatSync(join(root, path), { throwIfNoEntry: false })?.isSymbolicLink()) {
+    console.error(`symlink: ${path}`);
+    process.exit(1);
+  }
+}
 
 const check = process.argv.includes('--check');
 let stale = false;
@@ -81,8 +96,7 @@ for (const [path, text] of files) {
     catch (error) { console.error(`cannot generate ${path}: ${error.code}`); process.exitCode = 1; }
   }
 }
-const vendorDir = join(root, vendor);
-if (check ? existsSync(vendorDir) : lstatSync(vendorDir, { throwIfNoEntry: false })?.isDirectory()) {
+if (existsSync(vendorDir)) {
   for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
     const path = `${vendor}/${entry.name}`;
     if (files.has(path)) continue;
@@ -90,8 +104,14 @@ if (check ? existsSync(vendorDir) : lstatSync(vendorDir, { throwIfNoEntry: false
       console.error(`extra: ${path}`);
       stale = true;
     } else if (entry.isFile()) {
-      try { unlinkSync(join(root, path)); }
+      try {
+        unlinkSync(join(root, path));
+        console.log(`removed: ${path}`);
+      }
       catch (error) { console.error(`cannot remove ${path}: ${error.code}`); process.exitCode = 1; }
+    } else if (entry.isDirectory() || entry.isSymbolicLink()) {
+      console.error(`extra: ${path} (remove by hand)`);
+      process.exitCode = 1;
     }
   }
 }
