@@ -58,7 +58,8 @@ export function main(argv = [], { root = ROOT, config, log = console.log,
     if (!installed) log('WARN Codex project merge hook missing or pointing at a moved plugin. Next: node "<plugin-root>/bin/tbs-init" --update --codex-hook, then trust it in Codex /hooks');
   }
   if (level >= 2) {
-    piece(!!config.featureMap, "feature map configured", "add featureMap.sources");
+    // A project may keep its own feature map (owner decision 19 Nov 2026), as lanes.mjs accepts.
+    if (!config.featureMap) log("NOTE feature map not configured in the kit: not checked (the project may keep its own). To use the kit's: add featureMap.sources");
     if (config.featureMap) {
       piece(existsSync(join(root, config.featureMap.file ?? "docs/feature-map.json")), "feature map file", "run node scripts/tbs/feature-map.mjs --init");
       for (const source of config.featureMap.sources) piece(existsSync(join(root, source.dir)), `feature source ${source.dir}`, "correct featureMap.sources[].dir");
