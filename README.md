@@ -74,9 +74,9 @@ Each level keeps everything below it.
 
 You can move down at any time; checks above the new level report "not adopted". Below level 4,
 `lanes.mjs` allows one agent at a time and the self-merge lane is off; below level 3 `/autopilot` is
-supervised (fully at level 1; see "Running agents unattended"). A config with no `level` keeps
-level-4 behaviour, which is how installs from before levels existed keep working; set it explicitly to
-step down. `tbs-init --update` keeps your level.
+supervised (fully at level 1; see "Running agents unattended"). For the scripts (lanes, self-merge, evals) a config with
+no `level` keeps level-4 behaviour, which is how installs from before levels existed keep working; set it
+explicitly to step down. `/autopilot` supervision is the exception: a missing `level` counts as level 1. `tbs-init --update` keeps your level.
 
 ## Quickstart
 
@@ -228,7 +228,8 @@ Works the backlog in a loop, never running more lanes than `lanes.mjs` allows, a
 launching while a finished lane waits for review. Supervision lifts with the adoption level: at level 1
 you start every run and approve every plan and merge; level 2 lets it merge docs and prose; from level 3
 runs may be scheduled and it merges code after routine, gates and evals (gate code and governance stay
-yours); level 4 is the full loop. Unattended runs need level 3 or higher.
+yours); level 4 is the full loop for everything else. Gate code and governance stay yours at every level.
+Unattended runs need level 3 or higher, set explicitly: `/autopilot` treats a config with no `level` as level 1.
 
 Level 4, with the self-merge lane on:
 

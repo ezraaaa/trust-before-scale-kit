@@ -19,18 +19,19 @@ Nothing here grants permission to release or deploy.
 
 ## Supervision by adoption level
 
-Supervision lifts one step per adoption level (`level` in the config). A config without `level` keeps
-level-4 behaviour; a `level` that is not 1, 2, 3 or 4 counts as level 1. Owner decision, 19 Nov 2026, for
+Supervision lifts one step per adoption level (`level` in the config). For supervision, a config without
+`level`, or with a `level` that is not 1, 2, 3 or 4, counts as level 1: projects opt in to more autonomy. Owner decision, 19 Nov 2026, for
 every project, replacing unattended runs at any level: "autopilot level one should only be supervised.
 slowly lift off supervision to level 4". The level caps everything below; the extension and host
-instructions may only be stricter. Only the owner changes the level.
+instructions may only be stricter. Only the owner changes the level. Owner decisions, 19 Nov 2026: a
+missing level means level 1, and gate code and governance stay the owner's at every level, level 4 included.
 
 | Level | Who starts a run | Plans | Merges |
 |---|---|---|---|
 | 1 | the owner, by hand, every run | the owner approves each one | the owner approves each one |
 | 2 | the owner, by hand | the owner approves each one | the agent merges a PR whose every file is docs or prose and none is gate code or governance, after routine and gates; the owner merges the rest |
 | 3 | runs may be scheduled or looped | owner-approved priorities | the agent merges a PR with no gate-code or governance file, after routine, gates and `skill-eval --check`; the owner merges the rest |
-| 4 | runs may be scheduled or looped | the extension's priority order | full loop within the lane gate; only the stop-and-ask list needs the owner |
+| 4 | runs may be scheduled or looped | the extension's priority order | full loop within the lane gate for a PR with no gate-code or governance file; the owner merges the rest, and the stop-and-ask list needs the owner |
 
 **Gate code** is every check that decides what passes: the project's gates, hooks, CI workflows and
 `scripts/tbs/`. **Governance** is what decides what agents may do: the trust-before-scale config, the
@@ -138,6 +139,7 @@ for the owner and continue independent work when a change would:
 - Delete or rewrite work outside the current slice.
 - Overturn a recorded decision or a “do not fix back” instruction.
 - Add a new dependency.
+- Change gate code or governance (defined under "Supervision by adoption level"), at any level.
 
 The extension adds project-specific triggers. Routine work within the authorized slice continues.
 
