@@ -8,15 +8,19 @@ a claim to check against git and GitHub.
 
 ## State (19 Nov 2026)
 
-- Released: 1.7.2 (`v1.7.2` on `main`, `gemini` published). `develop` is at or after `8ee7ebf`.
+- Released: 1.7.2 (`v1.7.2` on `main`, `gemini` published). `develop` is at or after `704d4e3`.
 - The kit now uses itself at adoption level 1: `.agents/trust-before-scale.json`, the autopilot extension
   `.agents/skills/autopilot/SKILL.md`, generated `scripts/tbs/`, `docs/trust-before-scale/`.
   `lanes.mjs` allows one lane.
-- In flight: `feature/missing-level-is-one` (a missing or invalid `level` is level 1 in every script and
-  the merge-gate hook), PR against `develop`, awaiting the owner's merge (gate code).
+- In flight: nothing. No open feature branch or lane worktree.
 - Merged into `develop` on 19 Nov 2026: PR 23 self-adoption (`84f0289`), PR 26 learn/method parking,
-  PR 27 token efficiency, PR 30 autopilot supervision ladder (`eb4417c`).
-- A read-only daily triage task drafts plans for one or two open issues each morning for the owner to
+  PR 27 token efficiency, PR 30 autopilot supervision ladder (`eb4417c`), PR 31 a missing `level` is level 1
+  in every script and the merge-gate hook, and `doctor` accepts a project-kept feature map (`704d4e3`).
+- Issue #29 (supervision ladder) is done: merged in PR 30 and PR 31 (unreleased). It is still open on GitHub for the owner to close.
+- Issue #28 (Modern Web Guidance as an optional add-on for web projects, never bundled): owner decision
+  19 Nov 2026, `design-audit` owns it and measures first. Not in 1.7.3.
+- Scheduled task `daily-issue-triage-tbs-kit`: a local, read-only Claude app task, about 08:30 daily, that
+  runs only while the Claude app is open. It drafts plans for one or two open issues for the owner to
   approve. Autopilot here is fully supervised at level 1 (owner decision 19 Nov 2026): the owner starts
   every run by hand on an approved triage plan and approves each plan and merge. Supervision lifts one step
   per adoption level up to level 4 (shipped autopilot core); gate code and governance stay the owner's at every
@@ -59,7 +63,7 @@ a claim to check against git and GitHub.
 
 ## Next exact action
 
-If the `feature/missing-level-is-one` PR is still open: it waits for the owner's merge (gate code), with
-evidence on its head in the PR. Otherwise: plan the 1.7.3 patch from the open gate-code issues, starting with
-the owner's pick from the daily triage.
+Plan the 1.7.3 patch (Next work 1), starting with the owner's pick from the daily triage
+(`daily-issue-triage-tbs-kit`). Write `PLAN.md`, get the owner's approval, then implement on a feature branch
+from `develop`.
 Each gate-code change is a plan for the owner first (autopilot extension, "Stop and ask").
