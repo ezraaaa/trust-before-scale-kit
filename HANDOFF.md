@@ -18,7 +18,7 @@ a claim to check against git and GitHub.
   approve. Autopilot here is fully supervised at level 1 (owner decision 19 Nov 2026): the owner starts
   every run by hand on an approved triage plan and approves each plan and merge. Supervision lifts one step
   per adoption level up to level 4 (shipped autopilot core); gate code and governance stay the owner's at every
-  level, and a config without `level` counts as level 1 for supervision. Scheduling is revisited after a few clean runs.
+  level, and a config without `level` counts as level 1 (autopilot and scripts). Scheduling is revisited after a few clean runs.
 
 ## Owner list (parked questions)
 

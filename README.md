@@ -74,9 +74,10 @@ Each level keeps everything below it.
 
 You can move down at any time; checks above the new level report "not adopted". Below level 4,
 `lanes.mjs` allows one agent at a time and the self-merge lane is off; below level 3 `/autopilot` is
-supervised (fully at level 1; see "Running agents unattended"). For the scripts (lanes, self-merge, evals) a config with
-no `level` keeps level-4 behaviour, which is how installs from before levels existed keep working; set it
-explicitly to step down. `/autopilot` supervision is the exception: a missing `level` counts as level 1. `tbs-init --update` keeps your level.
+supervised (fully at level 1; see "Running agents unattended"). A config with no `level`, or an invalid
+one, counts as level 1 for the scripts and `/autopilot` alike: more autonomy is opt-in. Installs from before
+levels existed must set `"level": 4` to keep their behaviour; `doctor.mjs` says so when `level` is missing.
+`tbs-init --update` keeps your level.
 
 ## Quickstart
 
