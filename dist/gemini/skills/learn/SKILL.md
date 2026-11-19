@@ -21,7 +21,8 @@ eval case and a measured review pass. Prove the check red on the original mistak
 Never merge the draft yourself.
 
 At adoption level 4, the owner may not be around to accept a draft or answer a question. Do not wait: park
-that item (push its branch, note it with your recommendation where the project keeps owner questions) and
+that item (keep its branch, pushed only if the project's rules already allow it, and note the branch and
+your recommendation where the project keeps owner questions) and
 work on what does not need them, such as other due classes, outcomes to record and checks to prove red.
 Absence is never acceptance: the draft stays unmerged and the answer stays pending until the owner gives it.
 
