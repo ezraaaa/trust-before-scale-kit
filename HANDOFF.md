@@ -12,8 +12,10 @@ a claim to check against git and GitHub.
 - The kit now uses itself at adoption level 1: `.agents/trust-before-scale.json`, the autopilot extension
   `.agents/skills/autopilot/SKILL.md`, generated `scripts/tbs/`, `docs/trust-before-scale/`.
   `lanes.mjs` allows one lane.
-- In flight: nothing. PR 23 (`feature/self-adoption`) merged into `develop` as `84f0289` on 19 Nov 2026,
-  after a full routine pass and gates on its head `6afaca0`.
+- In flight: `feature/missing-level-is-one` (a missing or invalid `level` is level 1 in every script and
+  the merge-gate hook), PR against `develop`, awaiting the owner's merge (gate code).
+- Merged into `develop` on 19 Nov 2026: PR 23 self-adoption (`84f0289`), PR 26 learn/method parking,
+  PR 27 token efficiency, PR 30 autopilot supervision ladder (`eb4417c`).
 - A read-only daily triage task drafts plans for one or two open issues each morning for the owner to
   approve. Autopilot here is fully supervised at level 1 (owner decision 19 Nov 2026): the owner starts
   every run by hand on an approved triage plan and approves each plan and merge. Supervision lifts one step
@@ -57,5 +59,7 @@ a claim to check against git and GitHub.
 
 ## Next exact action
 
-Plan the 1.7.3 patch from the open gate-code issues, starting with the owner's pick from the daily triage.
+If the `feature/missing-level-is-one` PR is still open: it waits for the owner's merge (gate code), with
+evidence on its head in the PR. Otherwise: plan the 1.7.3 patch from the open gate-code issues, starting with
+the owner's pick from the daily triage.
 Each gate-code change is a plan for the owner first (autopilot extension, "Stop and ask").
