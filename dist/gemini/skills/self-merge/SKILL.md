@@ -1,6 +1,6 @@
 ---
 name: self-merge
-description: "Low-risk self-merge lane: merge a PR touching only allowed paths (tests, briefs, notes, eval cases) once its gate and review logs are green on its head. Also clears owed reviews at session start."
+description: "Low-risk self-merge lane: merge a PR touching only allowed paths (tests, briefs, notes, eval cases) once its gate and review logs are green on the exact head. Also clears owed reviews at session start."
 ---
 
 # The self-merge lane

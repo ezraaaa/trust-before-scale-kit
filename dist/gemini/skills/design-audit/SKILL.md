@@ -11,7 +11,7 @@ gap, never a pass. Prefer the host capability in `routine.passes` (commands in `
 skill is the fallback. Never invent project rules or roles. In a blind eval with config hidden, use the
 routine inputs the prompt supplies and report missing source files.
 
-Report: the command or brief, the full head SHA, scope, findings (checked file:line, severity, introduced,
+Report: the command or brief, the reviewed full head SHA, scope, findings (checked file:line, severity, introduced,
 worsened or pre-existing), a clean verdict or why no review happened, and limits. Route findings through
 the routine. A report with no review is not clean. Never merge.
 

@@ -60,7 +60,7 @@ them, and reverify affected work. Let project tooling perform these steps.
 
 ## Finish to merge
 
-Push after every commit. Open a PR when the feature is built and ready for review, never a draft or a
+Push after every commit. Open a PR when the feature is built and ready for the project's review ritual, never a draft or a
 PR for a brief alone; resolve findings and finish one feature to merge. Work that cannot finish gets no
 PR: keep its branch pushed, comment on its issue with the branch, head and what is owed, and close any
 existing PR for it with the same status.
