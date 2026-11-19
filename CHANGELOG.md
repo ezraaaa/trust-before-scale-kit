@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fewer tokens: shorter skill descriptions (loaded in every session), a shorter shared intro in the eight review-pass skills, `routine.mjs plan --json --host <host>` (only that host's commands, each row's reason once; output without `--host` is unchanged), and `skill-eval` stops a case's remaining repeats after its first failed repeat.
 - At adoption level 4, `learn` and `method` no longer wait on an absent owner: park what needs their answer or acceptance, with a recommendation, and work on what does not. Absence is never acceptance.
 
 ## 1.7.2

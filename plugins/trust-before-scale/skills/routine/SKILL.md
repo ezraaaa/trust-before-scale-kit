@@ -5,21 +5,21 @@ description: "Plan and run the pre-merge review passes, route every finding, and
 
 # Routine
 
-This skill owns sequencing, scope and routing. Read the host instruction file and project config
-(`.agents/trust-before-scale.json`, legacy `.claude/trust-before-scale.json` only when absent).
-Read `routine.extension` if set; it adds project passes, rules and gate commands. If configured but
-missing, report the gap. Preserve the shared evidence requirements; do not invent domain policy.
-In a blind review where config is deliberately hidden, use explicit routine inputs supplied by
-the review prompt; report missing inputs instead of fabricating project context.
-Host-specific invocations live in `routine.passes` and `docs/harnesses.md`, not in this skill.
+This skill owns sequencing, scope and routing. Read the host instruction file, the project config
+(`.agents/trust-before-scale.json`, else `.claude/trust-before-scale.json`) and `routine.extension` if
+set (project passes, rules and gate commands; report it if configured but missing). Keep the shared
+evidence requirements and invent no domain policy. In a blind review with config hidden, use the routine
+inputs the prompt supplies and report missing ones. Host invocations live in `routine.passes` and
+`docs/harnesses.md`.
 
 ## Scope before implementation
 
-Run `node scripts/tbs/routine.mjs plan --base <base> --json`. Use the project's actual base ref.
-`routine.rows[].paths` are JavaScript path regexes. A diff spanning rows requires their union;
-name every matched row and reason. Unclassified paths block planning until the config is repaired.
-The plan includes committed, staged, unstaged and untracked paths, and both sides of moves.
-It is advisory scope, not proof a review ran. Use the emitted level and fixed pass order.
+Run `node scripts/tbs/routine.mjs plan --base <base> --json --host <host>` with the project's real base
+ref and your host (`claude`, `codex`, `cursor-agent` or `gemini`), so the plan lists only your commands.
+`routine.rows[].paths` are JavaScript path regexes; a diff spanning rows needs their union, and every
+matched row and reason is named. Unclassified paths block planning until the config is repaired. The plan
+covers committed, staged, unstaged and untracked paths and both sides of moves. It is advisory scope, not
+proof a review ran. Use the emitted level and fixed pass order.
 
 For a new surface, perform planned user-role and design reviews **before building and again after**.
 If implementation already exists and the pre-build pass was missed, name that gap and do the
