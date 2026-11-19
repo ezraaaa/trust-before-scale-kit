@@ -31,6 +31,19 @@ Owner decision 19 Nov 2026: scheduling is revisited after a few clean supervised
 2. The deferred items in `docs/maintaining.md` "Backlog", one at a time, each planned first.
 Nothing else without asking. An issue without an owner approval is parked with a recommended plan.
 
+Plan approval at level 4 (owner decision 19 Nov 2026, this repo only): "you can approve plans when trust
+level is 4 in this repo", scoped by the owner to "Non-gate plans only". This covers approving the
+implementation plan, not choosing the work: the agent still works only items 1 and 2 above, and an issue
+without the owner's approval stays parked. At level 4, for such an item, the agent may approve its own plan
+when the change touches no protected file. Protected files are every file in the `gate-code`,
+`kit-governance`, `shipped-skills`, `plugin-manifest` and `generated` rows of
+`.agents/trust-before-scale.json`, every file `routine.ruleSources` lists, and everything the core calls
+gate code or governance. It records the plan and its approval on the item's issue before implementing,
+opening a tracking issue first for a Backlog item that has none. The Backlog listing is the owner's
+choice of that work, so such a tracking issue is not parked. A plan
+touching a protected file, the "Stop and ask" list and every merge rule below are unchanged. Below level 4
+the owner approves every plan. This replaces owner approval of every plan at every level.
+
 ## Git flow and gates
 
 - Start every change with the `start-feature` skill: `feature/<name>` from up-to-date `origin/develop`,
