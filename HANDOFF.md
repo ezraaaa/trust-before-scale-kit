@@ -6,9 +6,9 @@ branch protection, harness status, adoption in the owner's projects) live in `do
 "State"; this file holds what is in flight, the owner list and the next action. Read every line here as
 a claim to check against git and GitHub.
 
-## State (19 Nov 2026)
+## State (20 Nov 2026)
 
-- Released: 1.7.2 (`v1.7.2` on `main`, `gemini` published). `develop` is at or after `704d4e3`.
+- Released: 1.7.2 (`v1.7.2` on `main`, `gemini` published). `develop` is at or after `e5c72ed`.
 - The kit now uses itself at adoption level 1: `.agents/trust-before-scale.json`, the autopilot extension
   `.agents/skills/autopilot/SKILL.md`, generated `scripts/tbs/`, `docs/trust-before-scale/`.
   `lanes.mjs` allows one lane.
@@ -16,6 +16,12 @@ a claim to check against git and GitHub.
 - Merged into `develop` on 19 Nov 2026: PR 23 self-adoption (`84f0289`), PR 26 learn/method parking,
   PR 27 token efficiency, PR 30 autopilot supervision ladder (`eb4417c`), PR 31 a missing `level` is level 1
   in every script and the merge-gate hook, and `doctor` accepts a project-kept feature map (`704d4e3`).
+- Merged into `develop` on 20 Nov 2026: PR 35 fixes #24, the private-name check now finds `.leakcheck.local`
+  from a worktree (worktree first, then the main checkout) and reports NOT RUN, never PASS, when it is
+  missing (`6f520a2`); PR 34 records the owner's level-4 plan-approval ruling, issue #33 (`e5c72ed`).
+  Issues #24 and #33 are done and still open on GitHub for the owner to close.
+- Known leak-check limits, both fail safe as NOT RUN, not fixed: linked worktrees of a main checkout made with
+  `--separate-git-dir`, and `--history` run from a subdirectory holding its own `.leakcheck.local`.
 - Issue #29 (supervision ladder) is done: merged in PR 30 and PR 31 (unreleased). It is still open on GitHub for the owner to close.
 - Issue #28 (Modern Web Guidance as an optional add-on for web projects, never bundled): owner decision
   19 Nov 2026, `design-audit` owns it and measures first. Not in 1.7.3.
@@ -35,6 +41,7 @@ a claim to check against git and GitHub.
    project that keeps its own map (owner decision 19 Nov 2026), so the kit could map its skills or keep none. Recommended: wait until
    the gate bugs below are fixed.
 2. #15 is a design question for the owner.
+3. Close #24, #29 and #33 on GitHub (all merged), or say if any should stay open.
 
 ## Lessons to record at level 3
 
@@ -54,7 +61,7 @@ a claim to check against git and GitHub.
 
 ## Next work, in order
 
-1. The next patch (1.7.3): open issues #13, #14, #16, #17, #18, #20, #21, #22 and #24, plus the deferred items in
+1. The next patch (1.7.3): open issues #13, #14, #16, #17, #18, #20, #21 and #22 (#24 fixed in PR 35), plus the deferred items in
    `docs/maintaining.md` "Backlog". Plan it first, then release as usual. Gate-code changes need the
    owner's read (autopilot extension, "Stop and ask").
 2. Before updating the owner's projects to the next release, check each config has an explicit `level`:
