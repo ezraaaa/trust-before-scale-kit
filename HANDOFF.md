@@ -48,9 +48,12 @@ a claim to check against git and GitHub.
 1. The next patch (1.7.3): open issues #13, #14, #16, #17, #18, #20, #21, #22 and #24, plus the deferred items in
    `docs/maintaining.md` "Backlog". Plan it first, then release as usual. Gate-code changes need the
    owner's read (autopilot extension, "Stop and ask").
-2. Rerun each project's eval suite before 25 Nov 2026, or after the 1.7.3 update if it lands first.
-3. A public demo project at level 2.
-4. A long-form explainer.
+2. Before updating the owner's projects to the next release, check each config has an explicit `level`:
+   a missing `level` now means level 1 (one lane, no self-merge, evals and learn off). Four of the five were
+   installed before levels existed; set the level the owner wants on each project's branch.
+3. Rerun each project's eval suite before 25 Nov 2026, or after the 1.7.3 update if it lands first.
+4. A public demo project at level 2.
+5. A long-form explainer.
 
 ## Next exact action
 
