@@ -19,10 +19,9 @@ a claim to check against git and GitHub.
 - Merged into `develop` on 20 Nov 2026: PR 35 fixes #24, the private-name check now finds `.leakcheck.local`
   from a worktree (worktree first, then the main checkout) and reports NOT RUN, never PASS, when it is
   missing (`6f520a2`); PR 34 records the owner's level-4 plan-approval ruling, issue #33 (`e5c72ed`).
-  Issues #24 and #33 are done and still open on GitHub for the owner to close.
-- Known leak-check limits, both fail safe as NOT RUN, not fixed: linked worktrees of a main checkout made with
+- Known leak-check limits (#37, low priority, not in 1.7.3), both fail safe as NOT RUN, not fixed: linked worktrees of a main checkout made with
   `--separate-git-dir`, and `--history` run from a subdirectory holding its own `.leakcheck.local`.
-- Issue #29 (supervision ladder) is done: merged in PR 30 and PR 31 (unreleased). It is still open on GitHub for the owner to close.
+- Issue #29 (supervision ladder) is done: merged in PR 30 and PR 31 (unreleased), closed 20 Nov 2026. #24 and #33 are closed too.
 - Issue #28 (Modern Web Guidance as an optional add-on for web projects, never bundled): owner decision
   19 Nov 2026, `design-audit` owns it and measures first. Not in 1.7.3.
 - Scheduled task `daily-issue-triage-tbs-kit`: a local, read-only Claude app task, about 08:30 daily, that
@@ -41,7 +40,6 @@ a claim to check against git and GitHub.
    project that keeps its own map (owner decision 19 Nov 2026), so the kit could map its skills or keep none. Recommended: wait until
    the gate bugs below are fixed.
 2. #15 is a design question for the owner.
-3. Close #24, #29 and #33 on GitHub (all merged), or say if any should stay open.
 
 ## Lessons to record at level 3
 

@@ -75,8 +75,8 @@ Park these as a plan for the owner; never merge them unattended:
 - Any change to gate code: the `gate-code` row in `.agents/trust-before-scale.json`
   (`templates/scripts`, `templates/ci`, `hooks`, `bin`, `schema`, plugin `tests`, `scripts/*`,
   `.github/workflows/`).
-  Open issues #13, #14, #16, #17, #18, #20, #21, #22 and #24 are bugs in these gates, so the kit must
-  not fix its own checks without a human read.
+  The open bugs in these gates are listed in `HANDOFF.md` "Next work"; the kit must not fix its own
+  checks without a human read.
 - Any change to a shipped skill's rules (`plugins/trust-before-scale/skills/`, `rules/`, `profiles/`).
 - Any change to this repo's own governance: the `kit-governance` row (`AGENTS.md`, `GEMINI.md`,
   `.agents/trust-before-scale.json`, `.claude/skills`,
