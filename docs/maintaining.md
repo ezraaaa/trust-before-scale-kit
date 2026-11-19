@@ -16,12 +16,16 @@ and reports them in this order:
    `git-env.test.mjs`, which reruns the others and runs in the vendored-tests gate (owner decision
    19 Nov 2026).
 
-Each gate prints PASS or FAIL with a retained log in a temporary
+Each gate prints PASS, FAIL or NOT RUN with a retained log in a temporary
 `tbs-gates-logs-*` directory. Logs record HEAD, commands, output and exit code; temporary
 install directories are removed even on failure. Changes in the working tree are tested too,
 so uncommitted results do not prove a committed head. Re-run after committing for release evidence.
 `--quick` skips the three installs for diagnosis only; it is not full verification.
-The runner never reads or copies `.leakcheck.local`; the leak-check subprocess reads it in place.
+The leak-check subprocess looks for `.leakcheck.local` in the current worktree first, then in the
+main checkout. The gate runs it with `--require`. If neither checkout has the file, the subprocess
+exits 78 and the runner reports NOT RUN and exits nonzero. Hosted CI omits `--require` and exits 0
+for the missing file. Local CI reports `private-names NOT RUN` in its summary when the same lookup
+finds no file, and the row does not fail the run. The gate runner itself never reads or copies `.leakcheck.local`.
 
 ## When Actions cannot run
 
@@ -85,7 +89,7 @@ branch so each release is one fast-forward commit on top of the last:
 `git clone --branch gemini --single-branch <origin-url> <dir>` (on the very first publish, `git init -b gemini`
 and `git remote add origin <origin-url>` instead), delete every tracked file there (`git rm -rq .`), export
 with `node scripts/build-harness.mjs --gemini-dir <export>` into a separate new directory, and copy the
-export's contents into `<dir>`. Before committing, run the source checkout's `scripts/leak-check.mjs`
+export's contents into `<dir>`. Before committing, run the source checkout's `scripts/leak-check.mjs` with `--require`
 from `<dir>`, using a private temporary copy of `.leakcheck.local` there (never stage it; remove it
 immediately after checking), and check the staged file list excludes it. Commit `gemini X.Y.Z`, then with
 the owner's go-ahead `git push origin HEAD:gemini`. Never force-push; if the push is rejected, stop for the

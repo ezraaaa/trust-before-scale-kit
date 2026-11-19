@@ -26,7 +26,7 @@ export function gateList(root) {
     ['harness-check', 'node', ['scripts/build-harness.mjs', '--check']],
     ['marketplace-validate', 'claude', ['plugin', 'validate', '.', '--strict']],
     ['plugin-validate', 'claude', ['plugin', 'validate', plugin, '--profile', 'directory']],
-    ['leak-check', 'node', ['scripts/leak-check.mjs']],
+    ['leak-check', 'node', ['scripts/leak-check.mjs', '--require']],
   ];
 }
 export async function runGates({ root, logDir, temp, quick = false, runner = runCommand, report = console.log }) {
@@ -84,7 +84,7 @@ export async function runGates({ root, logDir, temp, quick = false, runner = run
     const log = path.join(logDir, `${id}.log`);
     const code = result.status === 'fulfilled' ? result.value : 1;
     if (result.status === 'rejected') console.error(result.reason.message);
-    report(`${code === 0 ? 'PASS' : 'FAIL'} ${id} ${log}`);
+    report(`${code === 0 ? 'PASS' : code === 78 ? 'NOT RUN' : 'FAIL'} ${id} ${log}`);
     failed ||= code !== 0;
   }
   return failed ? 1 : 0;
