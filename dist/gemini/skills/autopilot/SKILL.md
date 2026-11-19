@@ -34,12 +34,13 @@ instructions may only be stricter. Only the owner changes the level.
 
 **Gate code** is every check that decides what passes: the project's gates, hooks, CI workflows and
 `scripts/tbs/`. **Governance** is what decides what agents may do: the trust-before-scale config, the
-autopilot and routine extensions, host instruction files, `routine.ruleSources` and the enforcer table, and
+autopilot and routine extensions, host instruction files, every file `routine.ruleSources` lists, the enforcer table, and
 agent settings (`.agents/`, `.claude/`, `.codex/`, `.cursor/`). The extension may add paths, never remove
 them. Check every file in a PR, not its label.
 
-Below level 3, never schedule a run or re-arm a wake-up, and answer a request for an unattended or
-overnight run by saying the level does not allow it and working supervised. Report and stop when the
+Below level 3, never schedule a run or re-arm a wake-up. If the owner asks in person for an unattended or
+overnight run, say the level does not allow it and offer supervised work. If a timer, schedule or loop
+started this run, report that the level does not allow it and stop without implementing anything. Report and stop when the
 supervised work is done. A merge the level does not allow is parked for the owner with the PR, its head
 and the evidence. The ladder is an instruction, not a hook: no check enforces it mechanically.
 
