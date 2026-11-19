@@ -117,6 +117,12 @@ log.unlink()
 assert invoke(command).returncode == 0
 config = root / ".claude/trust-before-scale.json"
 journal = root / ".git/tbs-learn/docs/trust-before-scale/lessons.jsonl"
+if journal.exists(): journal.unlink()
+for settings in ({}, *({"level": value} for value in (None, 2.5, 3.0, 0, 5, "4", True))):
+    config.write_text(json.dumps(settings))
+    result = invoke("git revert " + sha)
+    assert result.returncode == 0 and not result.stdout and not result.stderr, result
+    assert not journal.exists(), f"unexpected lesson for {settings}"
 for level in (2, 3):
     config.write_text(json.dumps({"level": level}))
     before = journal.read_text() if journal.exists() else ""

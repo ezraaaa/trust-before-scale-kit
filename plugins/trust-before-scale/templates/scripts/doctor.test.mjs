@@ -29,13 +29,19 @@ test('Codex hook warning is advisory and gives the installer command', () => {
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('a legacy config without level may keep its own feature map; an explicit level must configure one', () => {
+test('doctor reports the missing level and requires a feature map at level 2', () => {
   const root = mkdtempSync(join(tmpdir(), 'tbs-doctor-map-'));
   try {
     const run = (config) => { const logs = []; const code = main([], { root, config: { project: 'test', mergeGate: {}, evals: { suites: [] }, ...config }, probe: () => '', log: line => logs.push(line) }); return { code, logs }; };
-    const legacy = run({});
-    assert.ok(legacy.logs.some(l => l.startsWith('NOTE feature map not configured in the kit')), legacy.logs.join('\n'));
-    assert.ok(!legacy.logs.some(l => /FAIL.*feature map configured/.test(l)), legacy.logs.join('\n'));
+    mkdirSync(join(root, '.claude'));
+    const configPath = join(root, '.claude', 'trust-before-scale.json');
+    writeFileSync(configPath, JSON.stringify({ project: 'test', mergeGate: {} }));
+    const logs = [];
+    const code = main([], { root, probe: () => '', log: line => logs.push(line) });
+    assert.ok(logs.includes(`NOTE level not set: treated as level 1 (scripts and autopilot). Set "level": <1-4> in ${configPath} to opt in to more.`), logs.join('\n'));
+    assert.ok(logs.includes('PASS config (level 1)'));
+    assert.equal(code, 0, logs.join('\n'));
+    assert.ok(!logs.some(l => /FAIL.*feature map configured/.test(l)), logs.join('\n'));
     const explicit = run({ level: 2 });
     assert.equal(explicit.code, 1);
     assert.ok(explicit.logs.some(l => /feature map configured/.test(l) && !l.startsWith('PASS')), explicit.logs.join('\n'));
