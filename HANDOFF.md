@@ -23,10 +23,23 @@ a claim to check against git and GitHub.
    the gate bugs below are fixed.
 2. #15 is a design question for the owner.
 
+## Lessons to record at level 3
+
+`learn` is off at level 1 (`learn.mjs add` prints "not adopted"). Log each of these with
+`node scripts/tbs/learn.mjs add` once the kit reaches level 3, then delete this section. Each happened once.
+
+| Class | Where | Source | Evidence |
+|---|---|---|---|
+| routine-row-misclassified | `.agents/trust-before-scale.json` | review-finding | PR 23: `templates/ci` sat in `shipped-skills`, not `gate-code`; fixed d6ed0eb |
+| generated-output-orphans | `scripts/build-harness.mjs` | review-finding | PR 23: a rebuild left removed scripts in `scripts/tbs/`; fixed 7204e80 |
+| doc-claims-unverified-behaviour | `.agents/skills/autopilot/SKILL.md` | review-finding | PR 23: said `self-merge --owed` reports "not adopted" at level 1; it queries GitHub; fixed d6ed0eb |
+| pipe-hides-exit | agent shell use | review-finding (Claude's own check of its output) | PR 23: `ci-local.mjs` piped through `tail` showed exit 0 for a run with no jobs; rerun unpiped |
+| silent-skipped-check | `scripts/leak-check.mjs`, `scripts/ci-local.mjs` | review-finding | #24: private-name check skipped in worktrees, reported PASS |
+
 ## Next work, in order
 
 1. Land `feature/self-adoption` (review, gates, merge to `develop`).
-2. The next patch (1.7.3): open issues #13, #14, #16, #17 and #18, plus the deferred items in
+2. The next patch (1.7.3): open issues #13, #14, #16, #17, #18 and #24, plus the deferred items in
    `docs/maintaining.md` "Backlog". Plan it first, then release as usual. Gate-code changes need the
    owner's read (autopilot extension, "Stop and ask").
 3. Rerun each project's eval suite before 25 Nov 2026, or after the 1.7.3 update if it lands first.
