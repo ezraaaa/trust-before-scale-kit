@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { setTimeout as delay } from 'node:timers/promises';
 import { gateList, runGates } from './gates.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -62,15 +61,24 @@ test('a failed install stops that install but attempts the next profile', async 
   assert.equal(calls.filter(c => c.args[0] === 'scripts/tbs/doctor.mjs').length, 2);
 });
 
-test('concurrent gates overlap and report once in fixed order after an out-of-order failure', async () => {
+test('concurrent gates overlap and report once in fixed order after an out-of-order failure', { timeout: 5000 }, async () => {
   const gates = gateList(root);
   const ids = [...gates.map(([id]) => id), 'install-generic', 'install-acme-mobile', 'install-profile-dir'];
   const events = [];
+  let installsRemaining = 3;
+  let finishInstalls;
+  const installsFinished = new Promise(resolve => { finishInstalls = resolve; });
   const { code, rows } = await run(false, cmd => cmd === 'bash', (cmd, args, cwd) => {
-    if (cmd !== 'bash' && !(cmd === 'git' && args[0] === 'init')) return;
-    const id = cmd === 'bash' ? 'merge-gate-smoke' : `install-${path.basename(cwd)}`;
-    events.push(`start ${id}`);
-    return delay(cmd === 'bash' ? 30 : 10).then(() => events.push(`finish ${id}`));
+    if (cmd === 'bash') {
+      events.push('start merge-gate-smoke');
+      return installsFinished.then(() => events.push('finish merge-gate-smoke'));
+    }
+    const id = `install-${path.basename(cwd)}`;
+    if (cmd === 'git' && args[0] === 'init') events.push(`start ${id}`);
+    if (cmd === 'node' && args[0] === '--test' && args[1]?.startsWith('scripts/tbs/')) {
+      events.push(`finish ${id}`);
+      if (--installsRemaining === 0) finishInstalls();
+    }
   });
   assert.equal(code, 1);
   assert.deepEqual(rows.map(row => row.split(' ').slice(0, 2)), ids.map(id => [
