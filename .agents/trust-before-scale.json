@@ -123,6 +123,7 @@
         "paths": [
           "^\\.agents/trust-before-scale\\.json$",
           "^\\.agents/skills/",
+          "^\\.claude/skills$",
           "^docs/trust-before-scale/(routine-extension|enforcers)\\.md$"
         ],
         "passes": [

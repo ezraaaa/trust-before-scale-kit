@@ -32,13 +32,17 @@ Nothing else without asking. An issue without an owner approval is parked with a
 - Start every change with the `start-feature` skill: `feature/<name>` from up-to-date `origin/develop`,
   PR against `develop`. Never `git flow feature finish`. If local `develop` is checked out in another
   worktree, branch from `origin/develop` directly instead of moving it.
-- Before review: `run-gates` (`node scripts/gates.mjs`, full) on the committed head, then
-  `node scripts/ci-local.mjs --pr <N>`. Post the `routine` evidence block on the PR.
+- Before review: `run-gates` (`node scripts/gates.mjs`, full) on the committed head, then local CI.
+  On a Mac, `node scripts/ci-local.mjs --pr <N>` runs no job (Linux cannot run locally and the macOS
+  job is conditional): use `--all-jobs` for local macOS evidence. The required Linux checks are the
+  hosted `linux (20)` and `linux (22)` on the PR (`gh pr checks <N>`). Post the `routine` evidence block.
 - Merges go through the merge-gate hook, testing the whole gate run, never one gate's own log
-  (`gates.mjs` writes one log per gate; one passing log says nothing about the others):
-  `{ echo "HEAD=$(git rev-parse HEAD)"; node scripts/gates.mjs; } > gate.log 2>&1; echo "EXIT=$?" >> gate.log`,
-  check `HEAD=` is the verified sha, then
-  `grep -qx 'EXIT=0' gate.log && gh pr merge <N> --merge --match-head-commit <sha>`.
+  (`gates.mjs` writes one log per gate; one passing log says nothing about the others). Write the log
+  outside the checkout, so it is never committed or read by `routine.mjs plan` or the leak check:
+  `log="${TMPDIR:-/tmp}/tbs-gate-$(git rev-parse --short HEAD).log"`, then
+  `{ echo "HEAD=$(git rev-parse HEAD)"; node scripts/gates.mjs; } > "$log" 2>&1; echo "EXIT=$?" >> "$log"`,
+  check its `HEAD=` is the verified sha, then
+  `grep -qx 'EXIT=0' "$log" && gh pr merge <N> --merge --match-head-commit <sha>`.
 
 ## Lanes
 
