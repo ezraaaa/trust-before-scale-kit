@@ -71,16 +71,22 @@ const brief = 'docs/trust-before-scale/brief-template.md';
 files.set(brief, readFileSync(join(root, plugin, 'templates/docs/brief-template.md')));
 
 const vendorDir = join(root, vendor);
-const vendorStat = lstatSync(vendorDir, { throwIfNoEntry: false });
-if (vendorStat && !vendorStat.isDirectory()) {
-  console.error(`${vendorStat.isSymbolicLink() ? 'symlink' : 'not a directory'}: ${vendor}`);
-  process.exit(1);
-}
+// Check from the root down so lstat never traverses a symlinked ancestor.
 for (const path of files.keys()) {
   if (path !== brief && !path.startsWith(`${vendor}/`)) continue;
-  if (lstatSync(join(root, path), { throwIfNoEntry: false })?.isSymbolicLink()) {
-    console.error(`symlink: ${path}`);
-    process.exit(1);
+  const components = path.split('/');
+  for (let depth = 1; depth <= components.length; depth++) {
+    const prefix = components.slice(0, depth).join('/');
+    const stat = lstatSync(join(root, prefix), { throwIfNoEntry: false });
+    if (!stat) break;
+    if (stat.isSymbolicLink()) {
+      console.error(`symlink: ${prefix}`);
+      process.exit(1);
+    }
+    if (prefix === vendor && !stat.isDirectory()) {
+      console.error(`not a directory: ${vendor}`);
+      process.exit(1);
+    }
   }
 }
 
