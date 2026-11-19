@@ -7,10 +7,11 @@ import { fileURLToPath } from 'node:url';
 
 function runCommand(cmd, args, options) {
   return new Promise(resolve => {
-    execFile(cmd, args, options, (error, stdout, stderr) => {
-      const status = error ? (Number.isInteger(error.code) ? error.code : 1) : 0;
-      resolve({ status, stdout, stderr, error: Number.isInteger(error?.code) ? undefined : error });
+    const child = execFile(cmd, args, options, (error, stdout, stderr) => {
+      const exited = Number.isInteger(error?.code);
+      resolve({ status: error ? (exited ? error.code : 1) : 0, stdout, stderr, error: exited ? undefined : error });
     });
+    child.stdin?.end(); // Like spawnSync: a gate that reads stdin sees end-of-input instead of hanging.
   });
 }
 

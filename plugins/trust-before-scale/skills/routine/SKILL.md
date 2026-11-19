@@ -15,7 +15,8 @@ inputs the prompt supplies and report missing ones. Host invocations live in `ro
 ## Scope before implementation
 
 Run `node scripts/tbs/routine.mjs plan --base <base> --json --host <host>` with the project's real base
-ref and your host (`claude`, `codex`, `cursor-agent` or `gemini`), so the plan lists only your commands.
+ref and your host (`claude`, `codex`, `cursor-agent` or `gemini`), so the plan lists only your commands. An older
+vendored `routine.mjs` rejects `--host`: rerun without it.
 `routine.rows[].paths` are JavaScript path regexes; a diff spanning rows needs their union, and every
 matched row and reason is named. Unclassified paths block planning until the config is repaired. The plan
 covers committed, staged, unstaged and untracked paths and both sides of moves. It is advisory scope, not

@@ -295,6 +295,11 @@ for (const caught of [false, true]) {
     assert.equal(result.pass, caught);
     assert.equal(result.evidence.length, expectedRuns);
     assert.equal(evalMain(["--check", "--fresh"], options), exit);
+    reviews = 0;
+    judgments = 0;
+    assert.equal(evalMain(["routine", "--case", "count"], options), exit);
+    assert.equal(reviews, expectedRuns);
+    assert.equal(judgments, expectedRuns);
   }));
 }
 

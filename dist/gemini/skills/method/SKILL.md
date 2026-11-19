@@ -1,6 +1,6 @@
 ---
 name: method
-description: "How to work in a trust-before-scale project: session-start checks, turning repeat failures into checks, and when to add agents. Use at session start where .agents/trust-before-scale.json exists, or before adding agents."
+description: "How to work in a trust-before-scale project: session-start checks, turning repeat failures into checks, and when to add agents. Use at session start where .agents/trust-before-scale.json (or legacy .claude/trust-before-scale.json) exists, or before adding agents."
 ---
 
 # Trust before scale: how to work

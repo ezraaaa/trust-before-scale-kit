@@ -415,7 +415,7 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
       for (let repeat = 0; repeat < repeats; repeat++) {
         const result = runCase(root, base, suite, item, run, config.baseBranch ?? "develop", runLinks);
         runs.push(result);
-        if (!only && !result.pass) break;
+        if (!result.pass) break;
       }
       if (item.expect === "gate") {
         const inputs = new Set(runs.map(result => result.gateInput));
