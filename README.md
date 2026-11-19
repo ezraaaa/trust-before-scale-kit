@@ -73,7 +73,8 @@ Each level keeps everything below it.
    gates and lanes allow.
 
 You can move down at any time; checks above the new level report "not adopted". Below level 4,
-`lanes.mjs` allows one agent at a time and the self-merge lane is off. A config with no `level` keeps
+`lanes.mjs` allows one agent at a time, the self-merge lane is off, and `/autopilot` is supervised
+(fully at level 1; see "Running agents unattended"). A config with no `level` keeps
 level-4 behaviour, which is how installs from before levels existed keep working; set it explicitly to
 step down. `tbs-init --update` keeps your level.
 
@@ -224,7 +225,10 @@ the lane count `lanes.mjs` allows and the reasons, never a guess.
 ### Running agents unattended: `/autopilot`
 
 Works the backlog in a loop, never running more lanes than `lanes.mjs` allows, and stops
-launching while a finished lane waits for review.
+launching while a finished lane waits for review. Supervision lifts with the adoption level: at level 1
+you start every run and approve every plan and merge; level 2 lets it merge docs and prose; from level 3
+runs may be scheduled and it merges code after routine, gates and evals (gate code and governance stay
+yours); level 4 is the full loop. Unattended runs need level 3 or higher.
 
 ```
 /autopilot work the milestone overnight. one PR per issue, routine evidence on each, merge
@@ -255,7 +259,7 @@ Runs your review skills against seeded faults and checks they still find them.
 | `learn` | A review missed something, a gate went red on merged code, or you corrected an agent. |
 | `skill-eval` | A review skill changed, before a release, or to add a seeded fault after a miss. |
 | `self-merge` | A PR touches only low-risk paths (tests, briefs, notes, eval cases), or reviews are owed. |
-| `autopilot` | You want the backlog worked unattended within the allowed lanes. |
+| `autopilot` | You want the backlog worked within the allowed lanes: supervised below level 3, unattended from level 3. |
 | `simplify` | You want a change made smaller without changing behaviour. Runs before correctness review. |
 | `code-review` | You want concrete regressions found in a settled change, with evidence. |
 | `deep-review` | You want a change checked against your project's rules and recorded decisions. |

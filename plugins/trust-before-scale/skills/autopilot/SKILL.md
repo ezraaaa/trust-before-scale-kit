@@ -16,6 +16,22 @@ If the extension is missing, report it and establish the project instructions be
 Quality bars, budgets, priorities, platform tools, release rules and git flow belong to the project.
 Nothing here grants permission to release or deploy.
 
+## Supervision by adoption level
+
+Supervision lifts one step per adoption level (`level` in the config; a config without `level` keeps
+level-4 behaviour). Owner decision, 19 Nov 2026: "autopilot level one should only be supervised. slowly
+lift off supervision to level 4". The level caps everything below; the extension may only be stricter.
+
+| Level | Who starts a run | Plans | Merges |
+|---|---|---|---|
+| 1 | the owner, by hand, every run | the owner approves each one | the owner approves each one |
+| 2 | the owner, by hand | the owner approves each one | the agent merges docs and prose PRs after routine and gates; the owner merges code |
+| 3 | runs may be scheduled or looped | owner-approved priorities | the agent merges code PRs after routine, gates and `skill-eval --check`; gate code and governance (config, extensions, host instruction files) stay the owner's |
+| 4 | runs may be scheduled or looped | the extension's priority order | full loop within the lane gate; only the stop-and-ask list needs the owner |
+
+Below level 3, never schedule a run or re-arm a wake-up: report and stop when the supervised work is
+done. A merge the level does not allow is parked for the owner with the PR, its head and the evidence.
+
 ## Step 0: falsify the handoff
 
 Read `autopilot.handoff` (default `HANDOFF.md`) as claims to check, not facts. Run the extension's
@@ -69,7 +85,7 @@ existing PR for it with the same status.
 
 Follow the extension's priority order. A blocked item is parked, never a reason to stop: add it to the
 handoff's owner list with context and a recommendation, leave one issue comment, and pick the next
-unblocked item free of file overlap. Under `/loop`, keep going until a usage limit or the owner says stop.
+unblocked item free of file overlap. Under `/loop` (level 3 and up), keep going until a usage limit or the owner says stop.
 If everything is parked, refresh the handoff and re-arm an idle wake-up to check issues and owner
 answers; report if the session cannot schedule one. A parked list alone does not end the loop.
 

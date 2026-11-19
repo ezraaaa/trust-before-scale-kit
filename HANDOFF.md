@@ -15,7 +15,9 @@ a claim to check against git and GitHub.
 - In flight: nothing. PR 23 (`feature/self-adoption`) merged into `develop` as `84f0289` on 19 Nov 2026,
   after a full routine pass and gates on its head `6afaca0`.
 - A read-only daily triage task drafts plans for one or two open issues each morning for the owner to
-  approve. Autopilot here runs supervised only until the owner says otherwise.
+  approve. Autopilot here is fully supervised at level 1 (owner decision 19 Nov 2026): the owner starts
+  every run by hand on an approved triage plan and approves each plan and merge. Supervision lifts one step
+  per adoption level up to level 4 (shipped autopilot core); scheduling is revisited after a few clean runs.
 
 ## Owner list (parked questions)
 
