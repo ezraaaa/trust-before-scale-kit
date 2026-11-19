@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Canonical metadata: Claude manifest. Canonical hook spec: hooks/hooks.json.
-import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync, readdirSync, lstatSync, unlinkSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -81,10 +81,18 @@ for (const [path, text] of files) {
     catch (error) { console.error(`cannot generate ${path}: ${error.code}`); process.exitCode = 1; }
   }
 }
-if (check && existsSync(join(root, vendor))) {
-  for (const entry of readdirSync(join(root, vendor))) {
-    const path = `${vendor}/${entry}`;
-    if (!files.has(path)) { console.error(`extra: ${path}`); stale = true; }
+const vendorDir = join(root, vendor);
+if (check ? existsSync(vendorDir) : lstatSync(vendorDir, { throwIfNoEntry: false })?.isDirectory()) {
+  for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
+    const path = `${vendor}/${entry.name}`;
+    if (files.has(path)) continue;
+    if (check) {
+      console.error(`extra: ${path}`);
+      stale = true;
+    } else if (entry.isFile()) {
+      try { unlinkSync(join(root, path)); }
+      catch (error) { console.error(`cannot remove ${path}: ${error.code}`); process.exitCode = 1; }
+    }
   }
 }
 if (stale) process.exitCode = 1;

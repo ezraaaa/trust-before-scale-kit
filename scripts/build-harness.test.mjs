@@ -65,6 +65,18 @@ for (const [description, path, contents] of [
   });
 }
 
+test('a rebuild removes an extra vendored file and passes --check', t => {
+  const { cwd, run } = fixture(t);
+  const extra = join(cwd, vendor, 'removed-script.mjs');
+  writeFileSync(extra, 'extra file\n');
+
+  const build = run();
+  assert.equal(build.status, 0, build.stderr);
+  const check = run('--check');
+  assert.equal(check.status, 0, check.stderr);
+  assert.equal(existsSync(extra), false);
+});
+
 test('routine rows cover tracked files, vendored files and HANDOFF.md', t => {
   const configPath = join(root, '.agents/trust-before-scale.json');
   if (!existsSync(configPath)) return t.skip('missing .agents/trust-before-scale.json');
