@@ -133,11 +133,19 @@ EVENT = "beforeShellExecution" if "--cursor" in sys.argv or os.environ.get("CURS
 
 CAPTURE = None
 
+def adoption_level(config):
+    level = config.get("level")
+    # Match the scripts: JSON 3.0 is the integer 3 there; booleans, strings and fractions are not levels.
+    if type(level) in (int, float) and 1 <= level <= 4 and level == int(level):  # range first: inf, nan
+        return int(level)
+    return 1
+
+
 def capture_lesson(kind, where, source, evidence):
     if CAPTURE is None:
         return
     cwd, config = CAPTURE
-    if config.get("level", 4) < 3:
+    if adoption_level(config) < 3:
         return
     try:
         relative = config.get("learn", {}).get("file", "docs/trust-before-scale/lessons.jsonl")

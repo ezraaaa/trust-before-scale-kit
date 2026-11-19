@@ -12,18 +12,20 @@ a claim to check against git and GitHub.
 - The kit now uses itself at adoption level 1: `.agents/trust-before-scale.json`, the autopilot extension
   `.agents/skills/autopilot/SKILL.md`, generated `scripts/tbs/`, `docs/trust-before-scale/`.
   `lanes.mjs` allows one lane.
-- In flight: nothing. PR 23 (`feature/self-adoption`) merged into `develop` as `84f0289` on 19 Nov 2026,
-  after a full routine pass and gates on its head `6afaca0`.
+- In flight: `feature/missing-level-is-one` (a missing or invalid `level` is level 1 in every script and
+  the merge-gate hook), PR against `develop`, awaiting the owner's merge (gate code).
+- Merged into `develop` on 19 Nov 2026: PR 23 self-adoption (`84f0289`), PR 26 learn/method parking,
+  PR 27 token efficiency, PR 30 autopilot supervision ladder (`eb4417c`).
 - A read-only daily triage task drafts plans for one or two open issues each morning for the owner to
   approve. Autopilot here is fully supervised at level 1 (owner decision 19 Nov 2026): the owner starts
   every run by hand on an approved triage plan and approves each plan and merge. Supervision lifts one step
   per adoption level up to level 4 (shipped autopilot core); gate code and governance stay the owner's at every
-  level, and a config without `level` counts as level 1 for supervision. Scheduling is revisited after a few clean runs.
+  level, and a config without `level` counts as level 1 (autopilot and scripts). Scheduling is revisited after a few clean runs.
 
 ## Owner list (parked questions)
 
-1. Raise the kit's adoption level? Level 2 needs a feature map (the kit has no screens): either map the
-   skills as features or change the shipped `doctor` to accept a thin install. Recommended: wait until
+1. Raise the kit's adoption level? Level 2 needs a feature map (the kit has no screens): `doctor` now accepts a
+   project that keeps its own map (owner decision 19 Nov 2026), so the kit could map its skills or keep none. Recommended: wait until
    the gate bugs below are fixed.
 2. #15 is a design question for the owner.
 
@@ -48,11 +50,16 @@ a claim to check against git and GitHub.
 1. The next patch (1.7.3): open issues #13, #14, #16, #17, #18, #20, #21, #22 and #24, plus the deferred items in
    `docs/maintaining.md` "Backlog". Plan it first, then release as usual. Gate-code changes need the
    owner's read (autopilot extension, "Stop and ask").
-2. Rerun each project's eval suite before 25 Nov 2026, or after the 1.7.3 update if it lands first.
-3. A public demo project at level 2.
-4. A long-form explainer.
+2. Before updating the owner's projects to the next release, check each config has an explicit `level`:
+   a missing `level` now means level 1 (one lane, no self-merge, evals and learn off). Four of the five were
+   installed before levels existed; set the level the owner wants on each project's branch.
+3. Rerun each project's eval suite before 25 Nov 2026, or after the 1.7.3 update if it lands first.
+4. A public demo project at level 2.
+5. A long-form explainer.
 
 ## Next exact action
 
-Plan the 1.7.3 patch from the open gate-code issues, starting with the owner's pick from the daily triage.
+If the `feature/missing-level-is-one` PR is still open: it waits for the owner's merge (gate code), with
+evidence on its head in the PR. Otherwise: plan the 1.7.3 patch from the open gate-code issues, starting with
+the owner's pick from the daily triage.
 Each gate-code change is a plan for the owner first (autopilot extension, "Stop and ask").

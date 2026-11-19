@@ -12,9 +12,13 @@ for (const name of [
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-export function loadConfig(root = ROOT) {
-  const path = [".agents", ".claude"].map((dir) => join(root, dir, "trust-before-scale.json")).find(existsSync)
+export function configPath(root = ROOT) {
+  return [".agents", ".claude"].map((dir) => join(root, dir, "trust-before-scale.json")).find(existsSync)
     ?? join(root, ".agents", "trust-before-scale.json");
+}
+
+export function loadConfig(root = ROOT) {
+  const path = configPath(root);
   let text;
   try { text = readFileSync(path, "utf8"); }
   catch { throw new Error(`No ${path}. Run the trust-before-scale setup skill in this project first.`); }
@@ -114,7 +118,8 @@ const schemaUrl = ["./config.schema.json", "../../schema/config.schema.json"]
   .map(path => new URL(path, import.meta.url)).find(existsSync);
 if (!schemaUrl) throw new Error("Missing config.schema.json beside config.mjs (reinstall the kit).");
 export const schema = JSON.parse(readFileSync(schemaUrl, "utf8"));
-export const adoptionLevel = (config) => config.level ?? 4; // Existing installs retain their behavior.
+// Higher adoption levels require an explicit, valid opt-in.
+export const adoptionLevel = ({ level }) => [1, 2, 3, 4].includes(level) ? level : 1;
 export function validateConfig(config) {
   const errors = [];
   function check(value, rule, at) {

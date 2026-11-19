@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { ROOT, isMain, loadConfig, validateConfig, adoptionLevel } from "./config.mjs";
+import { ROOT, isMain, loadConfig, configPath, validateConfig, adoptionLevel } from "./config.mjs";
 import { outcomes } from "./learn.mjs";
 export function main(argv = [], { root = ROOT, config, log = console.log,
   probe = (command) => execFileSync(command, ["--version"], { encoding: "utf8", stdio: "pipe", timeout: 10000 }),
@@ -20,6 +20,7 @@ export function main(argv = [], { root = ROOT, config, log = console.log,
   catch (error) { fail(error.message, "repair the project config using the config schema"); return 1; }
   const level = adoptionLevel(config);
   log(`PASS config (level ${level})`);
+  if (config.level === undefined) log(`NOTE level not set: treated as level 1 (scripts and autopilot). Set "level": <1-4> in ${configPath(root)} to opt in to more.`);
   const versionFile = join(root, "scripts/tbs/VERSION");
   if (existsSync(versionFile)) {
     const project = readFileSync(versionFile, "utf8").trim();
@@ -57,9 +58,8 @@ export function main(argv = [], { root = ROOT, config, log = console.log,
     if (!installed) log('WARN Codex project merge hook missing or pointing at a moved plugin. Next: node "<plugin-root>/bin/tbs-init" --update --codex-hook, then trust it in Codex /hooks');
   }
   if (level >= 2) {
-    // Configs without a level (legacy, level-4 behaviour) may keep their own feature map, as lanes.mjs accepts.
-    if (!config.featureMap && config.level === undefined) log("NOTE feature map not configured in the kit: not checked (the project may keep its own). To use the kit's: add featureMap.sources");
-    else piece(!!config.featureMap, "feature map configured", "add featureMap.sources");
+    // A project may keep its own feature map (owner decision 19 Nov 2026), as lanes.mjs accepts.
+    if (!config.featureMap) log("NOTE feature map not configured in the kit: not checked (the project may keep its own). To use the kit's: add featureMap.sources");
     if (config.featureMap) {
       piece(existsSync(join(root, config.featureMap.file ?? "docs/feature-map.json")), "feature map file", "run node scripts/tbs/feature-map.mjs --init");
       for (const source of config.featureMap.sources) piece(existsSync(join(root, source.dir)), `feature source ${source.dir}`, "correct featureMap.sources[].dir");

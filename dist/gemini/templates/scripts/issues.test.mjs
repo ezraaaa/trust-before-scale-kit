@@ -7,11 +7,37 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { main as evaluate, judged, loadCases, casesHash, skillHash, settingsHash } from './skill-eval.mjs';
 import { laneAllowance } from './lanes.mjs';
 import { run } from './self-merge.mjs';
-import { loadConfig, validateConfig } from './config.mjs';
+import { main as learn } from './learn.mjs';
+import { adoptionLevel, loadConfig, validateConfig } from './config.mjs';
 function temporary(fn) {
  const root = mkdtempSync(join(tmpdir(), 'tbs-issues-'));
  try { execFileSync('git', ['init', '-q', root]); execFileSync('git', ['config', 'user.name', 'Tester'], {cwd:root}); execFileSync('git', ['config', 'user.email', 'test@example.invalid'], {cwd:root}); fn(root); }
  finally { rmSync(root, {recursive:true, force:true}); }
+}
+for (const config of [{}, ...[null, 2.5, 0, 5, '4', true].map(level => ({ level }))]) {
+ test(`adoption defaults to level 1 for ${JSON.stringify(config)}`, () => {
+   if ('level' in config) assert.throws(() => validateConfig(config), /config.level/);
+   assert.equal(adoptionLevel(config), 1);
+ });
+}
+test('explicit adoption levels 1 through 4 are preserved', () => {
+ for (const level of [1, 2, 3, 4]) assert.equal(adoptionLevel(validateConfig({ level })), level);
+});
+test('self-merge refuses when adoption level is missing', () => {
+ const logs = [];
+ assert.equal(run(['1'], {
+   config: { selfMerge: { enabled: true } },
+   ghRun: () => assert.fail('must not call gh'),
+   log: line => logs.push(line),
+ }), 1);
+ assert.deepEqual(logs, ['REFUSED: not adopted (level 4)']);
+});
+for (const [name, main, argv] of [['skill-eval', evaluate, ['--check']], ['learn', learn, ['--due']]]) {
+ test(`${name} is not adopted when level is missing`, () => temporary(root => {
+   const logs = [];
+   assert.equal(main(argv, { root, config: {}, log: line => logs.push(line) }), 0);
+   assert.deepEqual(logs, ['not adopted (level 3)']);
+ }));
 }
 test('one loader rejects invalid preferred config; level guards precede agent and merge calls', () => temporary(root => {
  mkdirSync(join(root,'.agents')); mkdirSync(join(root,'.claude'));
@@ -86,7 +112,7 @@ function evalFixture(root, expect) {
  if (expect === 'gate') item.gate = "printf 'src/x.ts incorrect\\n'; exit 1";
  put('evals/routine/cases/count/case.json', JSON.stringify(item));
  put('evals/routine/cases/count/seed.patch', 'diff --git a/src/x.ts b/src/x.ts\n--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1 +1 @@\n-const count = 1;\n+const count = 2;\n');
- return { suite, config: { evals: { suites: [suite] } }, resultPath: join(root, 'evals/routine/result.json') };
+ return { suite, config: { level: 4, evals: { suites: [suite] } }, resultPath: join(root, 'evals/routine/result.json') };
 }
 
 test('check rejects records predating evidence rule 3', () => temporary(root => {
@@ -170,7 +196,7 @@ test('owed lists local skips when GitHub search fails and lanes stay capped', ()
    if (args[0] === 'repo') return 'acme/project';
    throw new Error('GitHub unavailable');
  };
- const config = { autopilot: { maxLanes: 4 }, evals: { suites: [{ name: 'review', skills: [] }] } };
+ const config = { level: 4, autopilot: { maxLanes: 4 }, evals: { suites: [{ name: 'review', skills: [] }] } };
  assert.throws(() => run(['--owed'], { root, config, ghRun, log: x => output.push(x) }), /GitHub unavailable/);
  const allowance = laneAllowance({ root, config, ghRun, evalCheck: () => 0 });
  assert.equal(allowance.allowed, 1);

@@ -24,7 +24,7 @@ const lane = {
   gateRanPattern: "all good",
   review: { ranPattern: "REVIEW RAN", findingPattern: "\\[P[123]\\]" },
 };
-const config = { baseBranch: "develop", mergeGate: { exitMarker: "EXIT=0" }, selfMerge: lane };
+const config = { level: 4, baseBranch: "develop", mergeGate: { exitMarker: "EXIT=0" }, selfMerge: lane };
 const gateLog = (head = HEAD, exit = "EXIT=0") => `HEAD=${head}\nall good\n${exit}\n`;
 const reviewLog = (extra = "") => `HEAD=${HEAD}\nlog=x\n${extra}REVIEW RAN (4 commands)\nEXIT=0\n`;
 const info = { headRefOid: HEAD, baseRefName: "develop", state: "OPEN", isDraft: false };
@@ -206,7 +206,7 @@ test("the lane permits new eval files and refuses changes to existing ones", () 
 test("empty eval suites fail dry-run, a run and --check with the seed hint", () => inRepo(({ root }) => {
   for (const argv of [["routine", "--dry-run"], ["routine"], ["--check"]]) {
     const output = [];
-    assert.equal(evalMain(argv, { root, config: { evals: { suites: [suite] } }, log: (line) => output.push(line) }), 1);
+    assert.equal(evalMain(argv, { root, config: { level: 4, evals: { suites: [suite] } }, log: (line) => output.push(line) }), 1);
     assert.ok(output.some((line) => line.includes("no cases in evals/routine/cases: add 3–8 seeds from real failures")));
   }
 }));
@@ -216,7 +216,7 @@ test("dry-run checks every seed on the configured base and reports stale cases",
   // A dirty checkout must not affect the base used by --dry-run.
   put("src/x.ts", "uncommitted work\n");
   const output = [];
-  const options = { root, config: { evals: { suites: [suite] } }, log: (line) => output.push(line) };
+  const options = { root, config: { level: 4, evals: { suites: [suite] } }, log: (line) => output.push(line) };
   assert.equal(evalMain(["routine", "--dry-run"], options), 0);
   assert.ok(output.some((line) => line.includes("codex default")));
   putCase(put, seed.replace("-const count = 1;", "-const count = 9;"));
@@ -255,7 +255,7 @@ test("suite stops a gate case at its first failed repeat and records passes/repe
     }
     return spawnSync(command, command === "git" ? ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args] : args, { encoding: "utf8", ...options });
   };
-  assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [{ ...suite, repeats: 3 }] } }, run: runner, log: () => {} }), 1);
+  assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [{ ...suite, repeats: 3 }] } }, run: runner, log: () => {} }), 1);
   const result = JSON.parse(readFileSync(join(root, "evals/routine/result.json"), "utf8")).cases[0];
   assert.equal(gates, 2);
   assert.equal(result.passes, 1);
@@ -285,7 +285,7 @@ for (const caught of [false, true]) {
       }
       return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
     };
-    const options = { root, config: { evals: { suites: [{ ...suite, repeats }] } }, run, log: () => {} };
+    const options = { root, config: { level: 4, evals: { suites: [{ ...suite, repeats }] } }, run, log: () => {} };
     assert.equal(evalMain(["routine"], options), exit);
     assert.equal(reviews, expectedRuns);
     assert.equal(judgments, expectedRuns);
@@ -321,10 +321,10 @@ test("judge model is optional and the environment overrides suite settings", () 
         }
         return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
       };
-      assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [{ ...suite, judgeModel: configured }] } }, run: runner, log: () => {} }), 0);
+      assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [{ ...suite, judgeModel: configured }] } }, run: runner, log: () => {} }), 0);
       assert.ok(judgedOnce);
       const output = [];
-      assert.equal(evalMain(["routine", "--dry-run"], { root, config: { evals: { suites: [{ ...suite, judgeModel: configured }] } }, log: (line) => output.push(line) }), 0);
+      assert.equal(evalMain(["routine", "--dry-run"], { root, config: { level: 4, evals: { suites: [{ ...suite, judgeModel: configured }] } }, log: (line) => output.push(line) }), 0);
       assert.ok(output.some((line) => line.includes(expected ?? "codex default")));
     }
   } finally { if (old === undefined) delete process.env.TBS_JUDGE_MODEL; else process.env.TBS_JUDGE_MODEL = old; }
@@ -333,11 +333,11 @@ test("judge model is optional and the environment overrides suite settings", () 
 test("feature discovery refuses an empty or missing source with the fix hint", () => inRepo(({ root, put }) => {
   const hint = /no screens found: fix featureMap.sources in \.claude\/trust-before-scale.json/;
   for (const dir of ["src", "missing"]) {
-    const config = { featureMap: { sources: [{ dir, ext: ".tsx", item: "path: '([^']+)'" }] } };
+    const config = { level: 4, featureMap: { sources: [{ dir, ext: ".tsx", item: "path: '([^']+)'" }] } };
     for (const argv of [["--list"], ["--init"]]) assert.throws(() => mapMain(argv, { root, config, log: () => {} }), hint);
   }
   put("src/routes.tsx", "path: '/home'");
-  const config = { featureMap: { sources: [{ dir: "src", ext: ".tsx", item: "path: '([^']+)'" }] } };
+  const config = { level: 4, featureMap: { sources: [{ dir: "src", ext: ".tsx", item: "path: '([^']+)'" }] } };
   assert.equal(mapMain(["--list"], { root, config, log: () => {} }), 0);
   mkdirSync(join(root, "docs"));
   assert.equal(mapMain(["--init"], { root, config, log: () => {} }), 0);
@@ -375,7 +375,7 @@ test("repeat configuration cannot skip all runs or silently truncate them", () =
   putCase(put);
   for (const repeats of [0, -1, 1.5, "2"]) {
     for (const argv of [["routine", "--dry-run"], ["routine"], ["--check"]]) {
-      assert.throws(() => evalMain(argv, { root, config: { evals: { suites: [{ ...suite, repeats }] } }, log: () => {} }), /repeats must be a positive integer/);
+      assert.throws(() => evalMain(argv, { root, config: { level: 4, evals: { suites: [{ ...suite, repeats }] } }, log: () => {} }), /repeats must be a positive integer/);
     }
   }
 }));
@@ -399,7 +399,7 @@ for (const change of ["judge environment", "reviewPrompt", "missing settingsHash
       delete process.env.TBS_JUDGE_MODEL;
       const configured = { ...suite, judgeModel: "suite-judge" };
       const output = [];
-      const options = { root, config: { evals: { suites: [configured] } }, log: (line) => output.push(line),
+      const options = { root, config: { level: 4, evals: { suites: [configured] } }, log: (line) => output.push(line),
         run: (command, args, opts) => spawnSync(command, command === "git" ? ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args] : args, { encoding: "utf8", ...opts }) };
       assert.equal(evalMain(["routine"], options), 0);
       assert.equal(evalMain(["--check"], options), 0);
@@ -450,14 +450,14 @@ test("review repos hide answer keys in files and all history, preserve the seed 
     return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
   };
   const configured = { ...suite, hidePaths: ["private-key"] };
-  assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [configured] } }, run: runner, log: () => {} }), 0);
+  assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [configured] } }, run: runner, log: () => {} }), 0);
   assert.equal(reviews, 2);
   assert.equal(git("branch", "--list"), beforeBranches);
   assert.equal(git("worktree", "list"), beforeTrees);
   const output = [];
   const leakingRunner = (command, args, options) => command === "git" && args[0] === "rev-list"
     ? { status: 0, stdout: `${HEAD} evals/answer.txt\n` } : runner(command, args, options);
-  assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [configured] } }, run: leakingRunner, log: (line) => output.push(line) }), 1);
+  assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [configured] } }, run: leakingRunner, log: (line) => output.push(line) }), 1);
   assert.ok(output.some((line) => line.includes("blindness check failed")));
   assert.equal(reviews, 2);
 }));
@@ -465,7 +465,7 @@ test("review repos hide answer keys in files and all history, preserve the seed 
 test("hidden paths validate overlaps, patch targets and effective branch names; old settings become stale", () => inRepo(({ root, put }) => {
   putCase(put);
   for (const extra of [{ linkDirs: ["evals"] }, { skills: ["scripts/tbs/review"] }, { hidePaths: [".claude"] }, { hidePaths: ["../secret"] }, { hidePaths: ["/secret"] }]) {
-    assert.throws(() => evalMain(["routine", "--dry-run"], { root, config: { evals: { suites: [{ ...suite, ...extra }] } } }), /hidden path|invalid/);
+    assert.throws(() => evalMain(["routine", "--dry-run"], { root, config: { level: 4, evals: { suites: [{ ...suite, ...extra }] } } }), /hidden path|invalid/);
   }
   assert.throws(() => validateCase({ ...caseValue, id: "fixture-photo" }, "fixture-photo", seed), /must not reveal/);
   assert.throws(() => validateCase({ ...caseValue, expect: "review", file: "evals/x.ts" }, "count", seed.replaceAll("src/x.ts", "evals/x.ts")), /hidden path/);
@@ -492,7 +492,7 @@ test("review snapshot works when the checkout's hidden files differ from the sui
     return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
   };
   const output = [];
-  assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [{ ...suite, base }] } }, run: runner, log: (line) => output.push(line) }), 0, output.join("\n"));
+  assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [{ ...suite, base }] } }, run: runner, log: (line) => output.push(line) }), 0, output.join("\n"));
   assert.equal(reviews, 2);
 }));
 
@@ -508,7 +508,7 @@ test("a failed review case keeps the full review text and points to it", () => i
       return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
     };
     const output = [];
-    assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [suite] } }, run: runner, log: (line) => output.push(line) }), 1);
+    assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [suite] } }, run: runner, log: (line) => output.push(line) }), 1);
     const evidence = JSON.parse(output.find((line) => line.startsWith("{"))).evidence;
     assert.equal(evidence.length, 1);
     for (const entry of evidence) {
@@ -646,7 +646,7 @@ test("review links use one isolated run copy and remove it afterwards", () => in
     }
     return reviewRunner(command, args, options);
   };
-  assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [{ ...suite, linkDirs: ["node_modules"], repeats: 2 }] } }, run: runner, log: () => {} }), 0);
+  assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [{ ...suite, linkDirs: ["node_modules"], repeats: 2 }] } }, run: runner, log: () => {} }), 0);
   assert.equal(targets.length, 2);
   assert.equal(targets[0], targets[1]);
   assert.equal(existsSync(targets[0]), false);
@@ -933,7 +933,7 @@ test("fresh eval checks detect script changes while old records still pass", () 
   git("-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", "commit", "-qm", "Gate script");
   putCase(put, seed, { ...caseValue, gate: `node "${script}"` });
   const output = [];
-  const options = { root, config: { evals: { suites: [suite] } }, log: line => output.push(line),
+  const options = { root, config: { level: 4, evals: { suites: [suite] } }, log: line => output.push(line),
     run: (command, args, opts) => spawnSync(command, command === "git" ? ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args] : args, { encoding: "utf8", ...opts }) };
   assert.equal(evalMain(["routine"], options), 0);
   assert.equal(evalMain(["--check", "--fresh"], options), 0);

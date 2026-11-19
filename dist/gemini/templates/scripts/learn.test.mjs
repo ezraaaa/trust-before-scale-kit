@@ -24,14 +24,20 @@ test('validation, level guard, malformed evidence fail closed',t=>{
  const logs=[]; assert.equal(main(['add'],{root,config:{level:2},log:s=>logs.push(s)}),0); assert.match(logs[0],/not adopted/);
  writeFileSync(join(root,'broken'),'bad\n'); assert.throws(()=>outcomes({root,config:{learn:{file:'broken'}}}));
 });
-test('lanes use outcomes at level 3+, legacy defaults to 4',t=>{
+test('lanes use outcomes at level 3+',t=>{
  const root=fixture(t); add(entry,{root,config:{}}); add(entry,{root,config:{}});
  const opts={root,evalCheck:()=>0,owedCheck:()=>0,mapCheck:()=>0};
- for(const level of [undefined,3,4]) {
-  const result=laneAllowance({...opts,config:{...(level ? {level}:{}),learn:{maxDue:0},autopilot:{maxLanes:4},evals:{suites:[{name:'test',skills:[]}]}}});
+ for(const level of [3,4]) {
+  const result=laneAllowance({...opts,config:{level,learn:{maxDue:0},autopilot:{maxLanes:4},evals:{suites:[{name:'test',skills:[]}]}}});
   assert.equal(result.allowed,1); assert.ok(result.reasons.some(s=>s.includes('due classes')));
  }
  assert.ok(!laneAllowance({...opts,config:{level:2,learn:{maxDue:0}}}).reasons.some(s=>s.includes('due classes')));
+});
+test('missing adoption level allows one lane', t => {
+ const root = fixture(t);
+ const result = laneAllowance({ root, config: { autopilot: { maxLanes: 4 } }, owedCheck: () => 0 });
+ assert.equal(result.allowed, 1);
+ assert.match(result.reasons.join(' '), /not adopted \(level 4\)/);
 });
 test('concurrent writers from worktrees share intact bounded JSON lines',async t=>{
  const root=fixture(t); execFileSync('git',['init','-q',root]); execFileSync('git',['-C',root,'-c','user.name=Test','-c','user.email=test@example.invalid','commit','--allow-empty','-qm','init']);
@@ -46,7 +52,7 @@ test('concurrent writers from worktrees share intact bounded JSON lines',async t
 test('sync shares both worktrees once in date then id order, preserving committed bytes', t=>{
  const root=fixture(t); execFileSync('git',['init','-q',root]); execFileSync('git',['-C',root,'-c','user.name=Test','-c','user.email=test@example.invalid','commit','--allow-empty','-qm','init']);
  const other=join(root,'other'); execFileSync('git',['-C',root,'worktree','add','-qb','other',other]);
- const config={learn:{file:'shared/lessons.jsonl'}};
+ const config={level:4,learn:{file:'shared/lessons.jsonl'}};
  const a=add(entry,{root,config}), b=add(entry,{root:other,config});
  // Equal timestamps exercise the id tie-breaker; a duplicate journal id is copied once.
  a.date=b.date; writeFileSync(journal(root,config),[b,a,a].map(x=>JSON.stringify(x)).join('\n')+'\n');
@@ -61,6 +67,6 @@ test('sync shares both worktrees once in date then id order, preserving committe
  assert.equal(logs.at(-1),'Synced 0 lesson(s)'); assert.equal(readFileSync(join(other,config.learn.file),'utf8'),bytes);
 });
 test('sync outside git leaves the existing lesson file unchanged',t=>{
- const root=fixture(t); add(entry,{root,config:{}}); const before=readFileSync(journal(root,{}),'utf8');
- assert.equal(main(['sync'],{root,config:{},log:()=>{}}),0); assert.equal(readFileSync(journal(root,{}),'utf8'),before);
+ const root=fixture(t), config={level:4}; add(entry,{root,config}); const before=readFileSync(journal(root,config),'utf8');
+ assert.equal(main(['sync'],{root,config,log:()=>{}}),0); assert.equal(readFileSync(journal(root,config),'utf8'),before);
 });
