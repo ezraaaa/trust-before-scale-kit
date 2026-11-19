@@ -53,7 +53,8 @@
           "^README\\.md$",
           "^THIRD_PARTY_NOTICES\\.md$",
           "^LICENSE$",
-          "^docs/recipes/"
+          "^docs/recipes/",
+          "^PLAN\\.md$"
         ],
         "passes": [],
         "reason": "Informational prose with no gate consumer"
