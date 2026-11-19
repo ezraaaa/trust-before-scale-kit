@@ -5,32 +5,43 @@ description: "Run or resume the autonomous work loop under the project's extensi
 
 Read the project extension first: `autopilot.extension` in `.agents/trust-before-scale.json` (else
 `.claude/trust-before-scale.json`), default `.claude/skills/autopilot/SKILL.md`. A project autopilot skill
-with no line pointing at `trust-before-scale:autopilot` is not yet an extension: follow it and use only
-this core's lane gate.
+with no line pointing at `trust-before-scale:autopilot` is not yet an extension: follow it, under this
+core's lane gate and supervision ladder.
 
 # Autopilot core
 
 The extension and the host instruction file (`AGENTS.md`, `GEMINI.md` or `CLAUDE.md`) win where they also
-speak, but the lane gate stays the upper bound on parallel work whatever ceiling the extension names.
+speak, except that neither can loosen the lane gate (the upper bound on parallel work, whatever ceiling
+the extension names) or the supervision ladder below.
 If the extension is missing, report it and establish the project instructions before implementing.
 Quality bars, budgets, priorities, platform tools, release rules and git flow belong to the project.
 Nothing here grants permission to release or deploy.
 
 ## Supervision by adoption level
 
-Supervision lifts one step per adoption level (`level` in the config; a config without `level` keeps
-level-4 behaviour). Owner decision, 19 Nov 2026: "autopilot level one should only be supervised. slowly
-lift off supervision to level 4". The level caps everything below; the extension may only be stricter.
+Supervision lifts one step per adoption level (`level` in the config). A config without `level` keeps
+level-4 behaviour; a `level` that is not 1, 2, 3 or 4 counts as level 1. Owner decision, 19 Nov 2026, for
+every project, replacing unattended runs at any level: "autopilot level one should only be supervised.
+slowly lift off supervision to level 4". The level caps everything below; the extension and host
+instructions may only be stricter. Only the owner changes the level.
 
 | Level | Who starts a run | Plans | Merges |
 |---|---|---|---|
 | 1 | the owner, by hand, every run | the owner approves each one | the owner approves each one |
-| 2 | the owner, by hand | the owner approves each one | the agent merges docs and prose PRs after routine and gates; the owner merges code |
-| 3 | runs may be scheduled or looped | owner-approved priorities | the agent merges code PRs after routine, gates and `skill-eval --check`; gate code and governance (config, extensions, host instruction files) stay the owner's |
+| 2 | the owner, by hand | the owner approves each one | the agent merges a PR whose every file is docs or prose and none is gate code or governance, after routine and gates; the owner merges the rest |
+| 3 | runs may be scheduled or looped | owner-approved priorities | the agent merges a PR with no gate-code or governance file, after routine, gates and `skill-eval --check`; the owner merges the rest |
 | 4 | runs may be scheduled or looped | the extension's priority order | full loop within the lane gate; only the stop-and-ask list needs the owner |
 
-Below level 3, never schedule a run or re-arm a wake-up: report and stop when the supervised work is
-done. A merge the level does not allow is parked for the owner with the PR, its head and the evidence.
+**Gate code** is every check that decides what passes: the project's gates, hooks, CI workflows and
+`scripts/tbs/`. **Governance** is what decides what agents may do: the trust-before-scale config, the
+autopilot and routine extensions, host instruction files, `routine.ruleSources` and the enforcer table, and
+agent settings (`.agents/`, `.claude/`, `.codex/`, `.cursor/`). The extension may add paths, never remove
+them. Check every file in a PR, not its label.
+
+Below level 3, never schedule a run or re-arm a wake-up, and answer a request for an unattended or
+overnight run by saying the level does not allow it and working supervised. Report and stop when the
+supervised work is done. A merge the level does not allow is parked for the owner with the PR, its head
+and the evidence. The ladder is an instruction, not a hook: no check enforces it mechanically.
 
 ## Step 0: falsify the handoff
 
@@ -83,7 +94,7 @@ existing PR for it with the same status.
 
 ## Autonomy
 
-Follow the extension's priority order. A blocked item is parked, never a reason to stop: add it to the
+Follow the extension's priority order (at level 3, only owner-approved items). A blocked item is parked, never a reason to stop: add it to the
 handoff's owner list with context and a recommendation, leave one issue comment, and pick the next
 unblocked item free of file overlap. Under `/loop` (level 3 and up), keep going until a usage limit or the owner says stop.
 If everything is parked, refresh the handoff and re-arm an idle wake-up to check issues and owner

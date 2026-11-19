@@ -73,8 +73,8 @@ Each level keeps everything below it.
    gates and lanes allow.
 
 You can move down at any time; checks above the new level report "not adopted". Below level 4,
-`lanes.mjs` allows one agent at a time, the self-merge lane is off, and `/autopilot` is supervised
-(fully at level 1; see "Running agents unattended"). A config with no `level` keeps
+`lanes.mjs` allows one agent at a time and the self-merge lane is off; below level 3 `/autopilot` is
+supervised (fully at level 1; see "Running agents unattended"). A config with no `level` keeps
 level-4 behaviour, which is how installs from before levels existed keep working; set it explicitly to
 step down. `tbs-init --update` keeps your level.
 
@@ -229,6 +229,8 @@ launching while a finished lane waits for review. Supervision lifts with the ado
 you start every run and approve every plan and merge; level 2 lets it merge docs and prose; from level 3
 runs may be scheduled and it merges code after routine, gates and evals (gate code and governance stay
 yours); level 4 is the full loop. Unattended runs need level 3 or higher.
+
+Level 4, with the self-merge lane on:
 
 ```
 /autopilot work the milestone overnight. one PR per issue, routine evidence on each, merge
