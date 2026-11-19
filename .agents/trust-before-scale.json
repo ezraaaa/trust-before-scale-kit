@@ -76,7 +76,7 @@
       {
         "name": "shipped-skills",
         "paths": [
-          "^plugins/trust-before-scale/(skills|rules|profiles|templates/docs|templates/ci)/"
+          "^plugins/trust-before-scale/(skills|rules|profiles|templates/docs)/"
         ],
         "passes": [
           "correctness",
@@ -89,7 +89,7 @@
       {
         "name": "gate-code",
         "paths": [
-          "^plugins/trust-before-scale/(templates/scripts|hooks|bin|schema|tests)/",
+          "^plugins/trust-before-scale/(templates/scripts|templates/ci|hooks|bin|schema|tests)/",
           "^scripts/[^/]+$",
           "^\\.github/workflows/"
         ],

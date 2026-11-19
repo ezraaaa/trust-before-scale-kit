@@ -14,8 +14,11 @@ Config: `.agents/trust-before-scale.json` (level 1, one lane). Handoff and conti
    match their sources. Red means a template changed without a rebuild: run
    `node scripts/build-harness.mjs`, review the diff, and land it before other work.
 2. `node scripts/gates.mjs --quick`: a fast health read of the checkout. It is not verification.
-3. The core's step 0 (`self-merge.mjs --owed`, `skill-eval.mjs --check`, `lanes.mjs`). At level 1 the
-   eval and self-merge checks report "not adopted"; that is expected, not a failure.
+3. The core's step 0 (`self-merge.mjs --owed`, `skill-eval.mjs --check`, `lanes.mjs`). At level 1,
+   `skill-eval --check` and `learn.mjs --due` report "not adopted"; that is expected, not a failure.
+   `self-merge.mjs --owed` still queries GitHub and lists hook skips at every level: if it exits
+   nonzero (for example GitHub is unreachable), the owed-review backlog is unchecked, not clear.
+   Report it and rerun before ranking work.
 
 ## Priority
 
@@ -46,7 +49,8 @@ Nothing else without asking. An issue without an owner approval is parked with a
 Park these as a plan for the owner; never merge them unattended:
 
 - Any change to gate code: the `gate-code` row in `.agents/trust-before-scale.json`
-  (`templates/scripts`, `hooks`, `bin`, `schema`, plugin `tests`, `scripts/*`, `.github/workflows/`).
+  (`templates/scripts`, `templates/ci`, `hooks`, `bin`, `schema`, plugin `tests`, `scripts/*`,
+  `.github/workflows/`).
   Open issues #13, #14, #16, #17, #21 and #22 are bugs in these gates, so the kit must not fix its own
   checks without a human read.
 - Any change to a shipped skill's rules (`plugins/trust-before-scale/skills/`, `rules/`, `profiles/`).
