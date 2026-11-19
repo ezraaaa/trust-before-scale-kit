@@ -136,7 +136,7 @@ CAPTURE = None
 def adoption_level(config):
     level = config.get("level")
     # Match the scripts: JSON 3.0 is the integer 3 there; booleans, strings and fractions are not levels.
-    if type(level) in (int, float) and level == int(level) and 1 <= level <= 4:
+    if type(level) in (int, float) and 1 <= level <= 4 and level == int(level):  # range first: inf, nan
         return int(level)
     return 1
 
