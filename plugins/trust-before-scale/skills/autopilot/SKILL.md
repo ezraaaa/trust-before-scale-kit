@@ -24,7 +24,9 @@ Supervision lifts one step per adoption level (`level` in the config). For super
 every project, replacing unattended runs at any level: "autopilot level one should only be supervised.
 slowly lift off supervision to level 4". The level caps everything below; the extension and host
 instructions may only be stricter. Only the owner changes the level. Owner decisions, 19 Nov 2026: a
-missing level means level 1, and gate code and governance stay the owner's at every level, level 4 included.
+missing level means level 1, and gate code and governance stay the owner's at every level, level 4 included:
+ask the owner before changing them, not only before merging. Like the rest of the ladder, no extension or
+host instruction can loosen this.
 
 | Level | Who starts a run | Plans | Merges |
 |---|---|---|---|
