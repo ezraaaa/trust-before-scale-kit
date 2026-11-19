@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/ezraaaa/trust-before-scale-kit/main/plugins/trust-before-scale/schema/config.schema.json",
   "level": 1,
-  "_why_level": "Owner decision 19 Nov 2026: supervised first. Level 2+ needs a feature map (the kit has no screens); level 3 needs a kit eval suite after #13, #14, #16, #17, #21, #22.",
+  "_why_level": "Owner decision 19 Nov 2026: supervised first. Level 2+ needs a feature map (the kit has no screens); level 3 needs a kit eval suite after the open gate-code bugs (#13, #14, #16, #17, #18, #20, #21, #22, #24).",
   "project": "trust-before-scale-kit",
   "baseBranch": "develop",
   "mergeGate": {
@@ -25,7 +25,7 @@
     "maxLanes": 1,
     "handoff": "HANDOFF.md",
     "continuation": "HANDOFF.md",
-    "extension": ".claude/skills/autopilot/SKILL.md"
+    "extension": ".agents/skills/autopilot/SKILL.md"
   },
   "routine": {
     "extension": "docs/trust-before-scale/routine-extension.md",
@@ -117,6 +117,21 @@
         ],
         "gates": true,
         "reason": "Manifests and ignore rules decide what ships and what is checked"
+      },
+      {
+        "name": "kit-governance",
+        "paths": [
+          "^\\.agents/trust-before-scale\\.json$",
+          "^\\.agents/skills/",
+          "^docs/trust-before-scale/(routine-extension|enforcers)\\.md$"
+        ],
+        "passes": [
+          "deep-review",
+          "security",
+          "cross-review"
+        ],
+        "gates": true,
+        "reason": "The kit config and extensions decide what agents may do unattended; a loosened rule must be reviewed"
       }
     ],
     "passes": {

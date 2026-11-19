@@ -35,11 +35,14 @@ a claim to check against git and GitHub.
 | doc-claims-unverified-behaviour | `.agents/skills/autopilot/SKILL.md` | review-finding | PR 23: said `self-merge --owed` reports "not adopted" at level 1; it queries GitHub; fixed d6ed0eb |
 | pipe-hides-exit | agent shell use | review-finding (Claude's own check of its output) | PR 23: `ci-local.mjs` piped through `tail` showed exit 0 for a run with no jobs; rerun unpiped |
 | silent-skipped-check | `scripts/leak-check.mjs`, `scripts/ci-local.mjs` | review-finding | #24: private-name check skipped in worktrees, reported PASS |
+| single-gate-log-merge | `.agents/skills/autopilot/SKILL.md` | review-finding | PR 23 routine: merge recipe tested one gate's log; now one log of the whole run |
+| agent-can-loosen-own-rules | `.agents/trust-before-scale.json` | review-finding | PR 23 routine: config and extensions had no review passes or stop rule; added `kit-governance` row |
+| symlinked-generated-output | `scripts/build-harness.mjs` | review-finding | PR 23 routine: `--check` read through a symlinked `scripts/tbs`; now rejected |
 
 ## Next work, in order
 
 1. Land `feature/self-adoption` (review, gates, merge to `develop`).
-2. The next patch (1.7.3): open issues #13, #14, #16, #17, #18 and #24, plus the deferred items in
+2. The next patch (1.7.3): open issues #13, #14, #16, #17, #18, #20, #21, #22 and #24, plus the deferred items in
    `docs/maintaining.md` "Backlog". Plan it first, then release as usual. Gate-code changes need the
    owner's read (autopilot extension, "Stop and ask").
 3. Rerun each project's eval suite before 25 Nov 2026, or after the 1.7.3 update if it lands first.

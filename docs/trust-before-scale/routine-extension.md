@@ -8,6 +8,8 @@ plugin, its vendored scripts, hooks and an installer. It has no app, screens or 
 - Full gates: `node scripts/gates.mjs` from the repo root (the `run-gates` skill). Each gate writes a log
   under a temporary `tbs-gates-logs-*` directory that starts `HEAD=<sha>` and ends `EXIT=<code>`. Every
   gate log must end `EXIT=0`. `--quick` skips the fresh installs and is diagnostic only.
+- Evidence for a merge is one log of the whole run, not one gate's log:
+  `{ echo "HEAD=$(git rev-parse HEAD)"; node scripts/gates.mjs; } > gate.log 2>&1; echo "EXIT=$?" >> gate.log`.
 - For a PR: `node scripts/ci-local.mjs --pr <N>`; read every job log, including NOT RUN jobs.
 - Gates test the working tree. Commit first, then run them, so the logs prove the committed head.
 
