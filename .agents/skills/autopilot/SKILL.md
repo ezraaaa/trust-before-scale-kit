@@ -39,7 +39,8 @@ when the change touches no protected file. Protected files are every file in the
 `kit-governance`, `shipped-skills`, `plugin-manifest` and `generated` rows of
 `.agents/trust-before-scale.json`, every file `routine.ruleSources` lists, and everything the core calls
 gate code or governance. It records the plan and its approval on the item's issue before implementing,
-opening a tracking issue first for a Backlog item that has none. A plan
+opening a tracking issue first for a Backlog item that has none. The Backlog listing is the owner's
+choice of that work, so such a tracking issue is not parked. A plan
 touching a protected file, the "Stop and ask" list and every merge rule below are unchanged. Below level 4
 the owner approves every plan. This replaces owner approval of every plan at every level.
 
