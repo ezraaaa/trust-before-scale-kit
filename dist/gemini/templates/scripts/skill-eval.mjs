@@ -411,7 +411,12 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
     if (cases.some((item) => item.expect === "review")) copyLinks(root, suite, runLinks);
     results = cases.map((item) => {
       const repeats = suite.repeats ?? 2;
-      const runs = Array.from({ length: repeats }, () => runCase(root, base, suite, item, run, config.baseBranch ?? "develop", runLinks));
+      const runs = [];
+      for (let repeat = 0; repeat < repeats; repeat++) {
+        const result = runCase(root, base, suite, item, run, config.baseBranch ?? "develop", runLinks);
+        runs.push(result);
+        if (!only && !result.pass) break;
+      }
       if (item.expect === "gate") {
         const inputs = new Set(runs.map(result => result.gateInput));
         if (inputs.size !== 1) throw new Error(`${item.id}: gate inputs changed between runs`);

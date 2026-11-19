@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { plan, main, ORDER } from './routine.mjs';
 import { validateConfig } from './config.mjs';
 import { main as doctor } from './doctor.mjs';
@@ -85,6 +86,53 @@ test('planner sees committed, staged, unstaged and untracked changes without wri
   assert.equal(result.head,git('rev-parse','HEAD')); assert.equal(result.dirty,true);
   assert.equal(git('status','--porcelain'),before);
 }));
+test('host JSON keeps plan metadata and lists each row reason once', () => temp(root => {
+  const { git, put } = repo(root);
+  put('src/new.js');
+  const settings = config();
+  const hosts = ['claude', 'codex', 'cursor-agent', 'gemini'];
+  for (const host of hosts) settings.routine.passes.correctness[host] = `review with ${host}`;
+  const base = 'origin/main';
+  const legacy = { ...plan(settings, [change('src/new.js', 'A')], {
+    base, head: git('rev-parse', 'HEAD'), range: `${base}...HEAD`,
+  }), dirty: true };
+  const output = (...args) => {
+    let json;
+    assert.equal(main(['plan', '--json', ...args], { root, config: settings, log: line => json = line }), 0);
+    return json;
+  };
+  assert.equal(output(), JSON.stringify(legacy, null, 2));
+  const before = git('status', '--porcelain');
+  for (const host of hosts) {
+    const compact = output('--host', host);
+    const expected = {
+      ...legacy,
+      rows: [
+        { name: 'ui', reason: 'User visible', files: ['src/new.js'] },
+        { name: 'new', reason: 'New surface', files: ['src/new.js'] },
+      ],
+      passes: ORDER.map(step => ({
+        step,
+        rows: legacy.rows.filter(row => row.passes.includes(step)).map(row => row.name),
+        commands: step === 'correctness'
+          ? { [host]: `review with ${host}`, fallback: 'kit correctness' }
+          : { fallback: `kit ${step}` },
+      })),
+    };
+    assert.deepEqual(JSON.parse(compact), expected);
+    for (const { reason } of expected.rows) assert.equal(compact.split(reason).length, 2);
+  }
+  assert.equal(git('status', '--porcelain'), before);
+}));
+
+test('CLI rejects an unknown host with exit 1', () => {
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('./routine.mjs', import.meta.url)),
+    'plan', '--json', '--host', 'other'], { encoding: 'utf8' });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /unknown host.*other/i);
+  assert.equal(result.stdout, '');
+});
+
 test('moves retain old security surface and new UI requirements',()=>temp(root=>{
   const {git}=repo(root);git('mv','server/access.js','src/access.js');
   const result=jsonPlan(root,['--base','origin/main']);assert.ok(result.rows.some(r=>r.name==='backend'));
