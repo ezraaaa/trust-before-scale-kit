@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,17 +7,18 @@ import { fileURLToPath } from 'node:url';
 const filename = '.leakcheck.local';
 export const missingLeakFileMessage = 'NOT RUN: no .leakcheck.local in this worktree or the main checkout; private-name check did not run.';
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 128 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+const gitPath = (cwd, arg) => git(cwd, 'rev-parse', arg).replace(/\n$/, '');
 
 export function findLeakFile(cwd) {
-  let top, common;
   try {
-    top = git(cwd, 'rev-parse', '--show-toplevel').trimEnd();
+    const top = gitPath(cwd, '--show-toplevel');
     const local = path.join(top, filename);
     if (existsSync(local)) return local;
-    common = git(cwd, 'rev-parse', '--git-common-dir').trimEnd();
+    const common = path.resolve(cwd, gitPath(cwd, '--git-common-dir'));
+    if (git(cwd, `--git-dir=${common}`, 'rev-parse', '--is-bare-repository').trim() === 'true') return null;
+    const main = path.join(path.dirname(common), filename);
+    return existsSync(main) ? main : null;
   } catch { return null; }
-  const main = path.join(path.dirname(path.resolve(cwd, common)), filename);
-  return existsSync(main) ? main : null;
 }
 
 function main(cwd, args) {
@@ -27,7 +28,7 @@ function main(cwd, args) {
     return args.includes('--require') ? 78 : 0;
   }
   const patterns = readFileSync(file, 'utf8').split(/\r?\n/).filter(s => s.trim() && !s.startsWith('#')).map(s => new RegExp(s.startsWith('(?i)') ? s.slice(4) : s, s.startsWith('(?i)') ? 'i' : ''));
-  const root = git(cwd, 'rev-parse', '--show-toplevel').trimEnd();
+  const root = gitPath(cwd, '--show-toplevel');
   let count = 0;
   function check(text, location) { if (patterns.some(p => p.test(text))) { console.error(`Private-name match: ${location}`); count++; } }
   if (args.includes('--history')) {
@@ -46,6 +47,6 @@ function main(cwd, args) {
   return count ? 1 : 0;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   process.exitCode = main(process.cwd(), process.argv.slice(2));
 }

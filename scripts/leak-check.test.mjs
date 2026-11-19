@@ -16,10 +16,10 @@ function fixture(t) {
   return temp;
 }
 
-function repo(t) {
+function repo(t, treeName = 'tree') {
   const temp = fixture(t);
   const main = path.join(temp, 'main');
-  const tree = path.join(temp, 'tree');
+  const tree = path.join(temp, treeName);
   git(temp, 'init', '-q', main);
   fs.writeFileSync(path.join(main, 'tracked.txt'), 'Acme\n');
   git(main, 'add', 'tracked.txt');
@@ -63,4 +63,34 @@ test('outside a git repository the check reports NOT RUN even with a local file'
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /^NOT RUN:/);
   assert.equal(result.stderr, '');
+});
+
+test('invoking the CLI through a symlink honors --require', t => {
+  const { tree } = repo(t);
+  const link = path.join(fixture(t), 'leak-check.mjs');
+  fs.symlinkSync(script, link);
+  const result = spawnSync(process.execPath, [link, '--require'], { cwd: tree, encoding: 'utf8' });
+  assert.equal(result.status, 78, result.stdout + result.stderr);
+  assert.match(result.stdout, /^NOT RUN:/);
+});
+
+test('a linked worktree of a bare repo ignores patterns beside the bare repo', t => {
+  const { main } = repo(t);
+  const dir = fixture(t);
+  const bare = path.join(dir, 'bare.git');
+  const tree = path.join(dir, 'tree');
+  git(dir, 'clone', '--bare', main, bare);
+  fs.writeFileSync(path.join(dir, '.leakcheck.local'), 'Acme\n');
+  git(bare, 'worktree', 'add', '--detach', tree);
+  const result = run(tree, '--require');
+  assert.equal(result.status, 78, result.stdout + result.stderr);
+  assert.match(result.stdout, /^NOT RUN:/);
+});
+
+test('scans a worktree whose checkout path ends in a space', t => {
+  const { tree } = repo(t, 'tree ');
+  fs.writeFileSync(path.join(tree, '.leakcheck.local'), 'Acme\n');
+  const result = run(tree, '--require');
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stderr, /Private-name match: tracked\.txt/);
 });
