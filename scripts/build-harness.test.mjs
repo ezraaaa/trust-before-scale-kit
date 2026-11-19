@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -72,10 +72,61 @@ test('a rebuild removes an extra vendored file and passes --check', t => {
 
   const build = run();
   assert.equal(build.status, 0, build.stderr);
+  assert.equal(build.stdout, `removed: ${vendor}/removed-script.mjs\n`);
   const check = run('--check');
   assert.equal(check.status, 0, check.stderr);
   assert.equal(existsSync(extra), false);
 });
+
+for (const mode of ['check', 'build']) {
+  const args = mode === 'check' ? ['--check'] : [];
+  for (const path of [vendor, `${vendor}/VERSION`, brief]) {
+    test(`${mode} rejects a symlink at ${path}`, t => {
+      const { cwd, run } = fixture(t);
+      const output = join(cwd, path);
+      const target = join(cwd, 'link-target');
+      assert.equal(run().status, 0);
+      renameSync(output, target);
+      symlinkSync(target, output, path === vendor ? 'dir' : 'file');
+      const targetFile = path === vendor ? join(target, 'VERSION') : target;
+      if (mode === 'build') writeFileSync(targetFile, 'keep this content\n');
+      const original = readFileSync(targetFile);
+
+      const result = run(...args);
+      assert.deepEqual(readFileSync(targetFile), original);
+      assert.equal(result.stderr, `symlink: ${path}\n`);
+      assert.equal(result.status, 1);
+    });
+  }
+
+  test(`${mode} rejects a regular file at ${vendor}`, t => {
+    const { cwd, run } = fixture(t);
+    assert.equal(run().status, 0);
+    rmSync(join(cwd, vendor), { recursive: true });
+    writeFileSync(join(cwd, vendor), 'keep this content\n');
+
+    const result = run(...args);
+    assert.equal(result.stderr, `not a directory: ${vendor}\n`);
+    assert.equal(result.status, 1);
+    assert.equal(readFileSync(join(cwd, vendor), 'utf8'), 'keep this content\n');
+  });
+}
+
+for (const kind of ['directory', 'symlink']) {
+  test(`a rebuild reports and preserves an extra vendored ${kind}`, t => {
+    const { cwd, run } = fixture(t);
+    const path = `${vendor}/extra`;
+    const extra = join(cwd, path);
+    if (kind === 'directory') mkdirSync(extra);
+    else symlinkSync('missing-target', extra);
+
+    const result = run();
+    const entry = lstatSync(extra);
+    assert.ok(kind === 'directory' ? entry.isDirectory() : entry.isSymbolicLink());
+    assert.equal(result.stderr, `extra: ${path} (remove by hand)\n`);
+    assert.equal(result.status, 1);
+  });
+}
 
 test('routine rows cover tracked files, vendored files and HANDOFF.md', t => {
   const configPath = join(root, '.agents/trust-before-scale.json');
