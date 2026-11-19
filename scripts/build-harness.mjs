@@ -57,15 +57,34 @@ bundle('profiles');
 bundle('schema');
 files.set(`${gemini}/bin/tbs-init`, readFileSync(join(root, plugin, 'bin/tbs-init'), 'utf8'));
 files.set(`${gemini}/.claude-plugin/plugin.json`, JSON.stringify(source, null, 2) + '\n');
+// Vendor the scripts this repository runs from its own root.
+const vendor = 'scripts/tbs';
+const templateScripts = join(root, plugin, 'templates/scripts');
+for (const entry of readdirSync(templateScripts, { withFileTypes: true })) {
+  if (entry.isFile() && entry.name.endsWith('.mjs') && !entry.name.endsWith('.test.mjs')) {
+    files.set(`${vendor}/${entry.name}`, readFileSync(join(templateScripts, entry.name)));
+  }
+}
+files.set(`${vendor}/config.schema.json`, readFileSync(join(root, plugin, 'schema/config.schema.json')));
+files.set(`${vendor}/VERSION`, `${source.version}\n`);
+files.set('docs/trust-before-scale/brief-template.md', readFileSync(join(root, plugin, 'templates/docs/brief-template.md')));
+
+const check = process.argv.includes('--check');
 let stale = false;
 for (const [path, text] of files) {
   const full = join(root, path);
-  if (process.argv.includes('--check')) {
-    if (!existsSync(full) || readFileSync(full, 'utf8') !== text) { console.error(`stale: ${path}`); stale = true; }
+  if (check) {
+    if (!existsSync(full) || !readFileSync(full).equals(Buffer.from(text))) { console.error(`stale: ${path}`); stale = true; }
   } else {
     if (path === '.agents/plugins/marketplace.json' && process.argv.includes('--skip-agents-marketplace')) continue;
     try { mkdirSync(dirname(full), { recursive: true }); writeFileSync(full, text); }
     catch (error) { console.error(`cannot generate ${path}: ${error.code}`); process.exitCode = 1; }
+  }
+}
+if (check && existsSync(join(root, vendor))) {
+  for (const entry of readdirSync(join(root, vendor))) {
+    const path = `${vendor}/${entry}`;
+    if (!files.has(path)) { console.error(`extra: ${path}`); stale = true; }
   }
 }
 if (stale) process.exitCode = 1;

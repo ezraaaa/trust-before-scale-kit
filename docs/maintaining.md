@@ -54,6 +54,8 @@ The runner supports a strict subset of workflow YAML and fails on unsupported fi
 then run it. Codex's sandbox cannot write `.agents/`; there, use `--skip-agents-marketplace` and
 regenerate in a normal checkout before merging.
 
+`scripts/build-harness.mjs` also generates `scripts/tbs/` and `docs/trust-before-scale/brief-template.md`. Never edit them by hand.
+
 ## Private names
 
 Real project names belong only in the gitignored `.leakcheck.local` (one regex per line, a leading
