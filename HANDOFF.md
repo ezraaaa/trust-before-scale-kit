@@ -24,8 +24,8 @@ a claim to check against git and GitHub.
 
 ## Owner list (parked questions)
 
-1. Raise the kit's adoption level? Level 2 needs a feature map (the kit has no screens): either map the
-   skills as features or change the shipped `doctor` to accept a thin install. Recommended: wait until
+1. Raise the kit's adoption level? Level 2 needs a feature map (the kit has no screens): `doctor` now accepts a
+   project that keeps its own map (owner decision 19 Nov 2026), so the kit could map its skills or keep none. Recommended: wait until
    the gate bugs below are fixed.
 2. #15 is a design question for the owner.
 

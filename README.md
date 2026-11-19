@@ -75,10 +75,10 @@ Each level keeps everything below it.
 You can move down at any time; checks above the new level report "not adopted". Below level 4,
 `lanes.mjs` allows one agent at a time and the self-merge lane is off; below level 3 `/autopilot` is
 supervised (fully at level 1; see "Running agents unattended"). A config with no `level`, or an invalid
-one, counts as level 1 for the scripts and `/autopilot` alike: more autonomy is opt-in. Installs from before
-levels existed must set `"level": 4` to keep their behaviour; `doctor.mjs` says so when `level` is missing.
-At level 2 and up `doctor.mjs` also requires the kit's feature map (`featureMap.sources`); an install that
-kept its own map passes `lanes.mjs` but fails that doctor check until the map is configured.
+one, is level 1 for the scripts and `/autopilot` alike: more autonomy is opt-in (the scripts reject an
+invalid `level` until it is fixed). Installs from before levels existed must set `"level": 4` to keep their
+behaviour; `doctor.mjs` says so when `level` is missing. A project that keeps its own feature map instead of
+the kit's gets a note from `doctor.mjs` and `lanes.mjs`, not a failure; a configured `featureMap` is checked.
 `tbs-init --update` keeps your level.
 
 ## Quickstart

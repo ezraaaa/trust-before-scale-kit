@@ -29,7 +29,7 @@ test('Codex hook warning is advisory and gives the installer command', () => {
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('doctor reports the missing level and requires a feature map at level 2', () => {
+test('doctor reports the missing level and accepts a project-kept feature map at level 2', () => {
   const root = mkdtempSync(join(tmpdir(), 'tbs-doctor-map-'));
   try {
     const run = (config) => { const logs = []; const code = main([], { root, config: { project: 'test', mergeGate: {}, evals: { suites: [] }, ...config }, probe: () => '', log: line => logs.push(line) }); return { code, logs }; };
@@ -42,9 +42,13 @@ test('doctor reports the missing level and requires a feature map at level 2', (
     assert.ok(logs.includes('PASS config (level 1)'));
     assert.equal(code, 0, logs.join('\n'));
     assert.ok(!logs.some(l => /FAIL.*feature map configured/.test(l)), logs.join('\n'));
+    // Owner decision 19 Nov 2026: a project may keep its own feature map, as lanes.mjs accepts.
     const explicit = run({ level: 2 });
-    assert.equal(explicit.code, 1);
-    assert.ok(explicit.logs.some(l => /feature map configured/.test(l) && !l.startsWith('PASS')), explicit.logs.join('\n'));
+    assert.equal(explicit.code, 0, explicit.logs.join('\n'));
+    assert.ok(explicit.logs.includes("NOTE feature map not configured in the kit: not checked (the project may keep its own). To use the kit's: add featureMap.sources"), explicit.logs.join('\n'));
+    // A configured kit map is still checked.
+    const configured = run({ level: 2, featureMap: { file: 'docs/feature-map.json', sources: [{ dir: 'missing-src', ext: '.tsx', item: 'x', id: '{item}' }] } });
+    assert.equal(configured.code, 1, configured.logs.join('\n'));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
