@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Autopilot supervision lifts with the adoption level (owner decision 19 Nov 2026): level 1 is fully supervised, level 2 may merge docs and prose, level 3 may run on a schedule and merge code except gate code and governance, level 4 is the full loop. Gate code and governance stay the owner's at every level, level 4 included.
+- **Behaviour change for existing adopters:** `/autopilot` now treats a config with no `level` as level 1 (fully supervised), so autonomy is opt-in. Set `level` explicitly to keep unattended runs. The scripts (lanes, self-merge, evals) still treat a missing `level` as level 4.
 - Fewer tokens: shorter skill descriptions (loaded in every session), a shorter shared intro in the eight review-pass skills, `routine.mjs plan --json --host <host>` (only that host's commands, each row's reason once; output without `--host` is unchanged), and `skill-eval` stops a case's remaining repeats after its first failed repeat.
 - At adoption level 4, `learn` and `method` no longer wait on an absent owner: park what needs their answer or acceptance, with a recommendation, and work on what does not. Absence is never acceptance.
 

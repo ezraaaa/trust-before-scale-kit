@@ -8,6 +8,10 @@ description: "Project extension for trust-before-scale:autopilot in the kit repo
 This extends `trust-before-scale:autopilot`. Read that core first; this file wins where both speak.
 Config: `.agents/trust-before-scale.json` (level 1, one lane). Handoff and continuation: `HANDOFF.md`.
 
+Level 1 means fully supervised (the core's "Supervision by adoption level"): the owner starts every run by
+hand on a triage plan they approved, and approves each plan and each merge. Never schedule or loop it.
+Owner decision 19 Nov 2026: scheduling is revisited after a few clean supervised runs.
+
 ## Session start
 
 1. `node scripts/build-harness.mjs --check`: the vendored `scripts/tbs/` and other generated files
