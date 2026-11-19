@@ -25,8 +25,9 @@ a claim to check against git and GitHub.
   every run by hand on an approved triage plan and approves each plan and merge. Supervision lifts one step
   per adoption level up to level 4 (shipped autopilot core); gate code and governance stay the owner's at every
   level, and a config without `level` counts as level 1 (autopilot and scripts). Scheduling is revisited after a few clean runs.
-  Owner decision 19 Nov 2026: at level 4 in this repo the agent may approve its own plans for changes outside the
-  gate-code, governance, shipped-skill and manifest rows; those still need the owner (autopilot extension, "Priority").
+  Owner decision 19 Nov 2026: at level 4 in this repo the agent may approve its own implementation plans for work
+  already in its priority list when no protected file is touched; the full rule and protected-file list are in the
+  autopilot extension, "Priority". Choosing the work and every other plan stay the owner's.
 
 ## Owner list (parked questions)
 
