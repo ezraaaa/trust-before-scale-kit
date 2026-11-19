@@ -54,6 +54,8 @@ The runner supports a strict subset of workflow YAML and fails on unsupported fi
 then run it. Codex's sandbox cannot write `.agents/`; there, use `--skip-agents-marketplace` and
 regenerate in a normal checkout before merging.
 
+`scripts/build-harness.mjs` also generates `scripts/tbs/` and `docs/trust-before-scale/brief-template.md`. Never edit them by hand.
+
 ## Private names
 
 Real project names belong only in the gitignored `.leakcheck.local` (one regex per line, a leading
@@ -121,13 +123,8 @@ since 1.7.1.
   (one project needed a one-line fix in its own eval check).
 - In an eval worktree, `linkDirs` link from that worktree's root: link `node_modules` in first, or gate cases fail.
 
-**Handoff for the next session (Codex or Claude).** Nothing is in flight: no open PRs, branches or worktrees.
-Next work, in order:
-1. The next patch (1.7.3): open issues #13, #14, #16, #17 and #18, plus the deferred items in the Backlog below.
-   Plan it first, then release as usual. #15 is a design question for the owner.
-2. Rerun each project's eval suite before 25 Nov 2026, or after the 1.7.3 update if it lands first.
-3. A public demo project at level 2.
-4. A long-form explainer.
+**Handoff for the next session (Codex or Claude).** `HANDOFF.md` is the source of truth for what is in
+flight, the owner list and the next work; this section keeps only durable facts.
 
 ## Backlog
 

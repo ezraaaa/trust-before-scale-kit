@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Canonical metadata: Claude manifest. Canonical hook spec: hooks/hooks.json.
-import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync, readdirSync, lstatSync, unlinkSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -57,15 +57,68 @@ bundle('profiles');
 bundle('schema');
 files.set(`${gemini}/bin/tbs-init`, readFileSync(join(root, plugin, 'bin/tbs-init'), 'utf8'));
 files.set(`${gemini}/.claude-plugin/plugin.json`, JSON.stringify(source, null, 2) + '\n');
+// Vendor the scripts this repository runs from its own root.
+const vendor = 'scripts/tbs';
+const templateScripts = join(root, plugin, 'templates/scripts');
+for (const entry of readdirSync(templateScripts, { withFileTypes: true })) {
+  if (entry.isFile() && entry.name.endsWith('.mjs') && !entry.name.endsWith('.test.mjs')) {
+    files.set(`${vendor}/${entry.name}`, readFileSync(join(templateScripts, entry.name)));
+  }
+}
+files.set(`${vendor}/config.schema.json`, readFileSync(join(root, plugin, 'schema/config.schema.json')));
+files.set(`${vendor}/VERSION`, `${source.version}\n`);
+const brief = 'docs/trust-before-scale/brief-template.md';
+files.set(brief, readFileSync(join(root, plugin, 'templates/docs/brief-template.md')));
+
+const vendorDir = join(root, vendor);
+// Check from the root down so lstat never traverses a symlinked ancestor.
+for (const path of files.keys()) {
+  if (path !== brief && !path.startsWith(`${vendor}/`)) continue;
+  const components = path.split('/');
+  for (let depth = 1; depth <= components.length; depth++) {
+    const prefix = components.slice(0, depth).join('/');
+    const stat = lstatSync(join(root, prefix), { throwIfNoEntry: false });
+    if (!stat) break;
+    if (stat.isSymbolicLink()) {
+      console.error(`symlink: ${prefix}`);
+      process.exit(1);
+    }
+    if (prefix === vendor && !stat.isDirectory()) {
+      console.error(`not a directory: ${vendor}`);
+      process.exit(1);
+    }
+  }
+}
+
+const check = process.argv.includes('--check');
 let stale = false;
 for (const [path, text] of files) {
   const full = join(root, path);
-  if (process.argv.includes('--check')) {
-    if (!existsSync(full) || readFileSync(full, 'utf8') !== text) { console.error(`stale: ${path}`); stale = true; }
+  if (check) {
+    if (!existsSync(full) || !readFileSync(full).equals(Buffer.from(text))) { console.error(`stale: ${path}`); stale = true; }
   } else {
     if (path === '.agents/plugins/marketplace.json' && process.argv.includes('--skip-agents-marketplace')) continue;
     try { mkdirSync(dirname(full), { recursive: true }); writeFileSync(full, text); }
     catch (error) { console.error(`cannot generate ${path}: ${error.code}`); process.exitCode = 1; }
+  }
+}
+if (existsSync(vendorDir)) {
+  for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
+    const path = `${vendor}/${entry.name}`;
+    if (files.has(path)) continue;
+    if (check) {
+      console.error(`extra: ${path}`);
+      stale = true;
+    } else if (entry.isFile()) {
+      try {
+        unlinkSync(join(root, path));
+        console.log(`removed: ${path}`);
+      }
+      catch (error) { console.error(`cannot remove ${path}: ${error.code}`); process.exitCode = 1; }
+    } else if (entry.isDirectory() || entry.isSymbolicLink()) {
+      console.error(`extra: ${path} (remove by hand)`);
+      process.exitCode = 1;
+    }
   }
 }
 if (stale) process.exitCode = 1;
