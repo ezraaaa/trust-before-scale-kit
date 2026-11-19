@@ -7,21 +7,21 @@ import test from 'node:test';
 import { gateList, runGates } from './gates.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-async function run(quick, failure, beforeResult) {
+async function run(quick, failure, beforeResult, failureCode = 7) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'tbs-gates-test-'));
   const calls = [], rows = [];
   try {
     const code = await runGates({ root, temp, quick, logDir: path.join(temp, 'logs'), report: row => rows.push(row),
       runner(cmd, args, options) {
         calls.push({ cmd, args, cwd: options.cwd });
-        const result = { status: failure?.(cmd, args) ? 7 : 0, stdout: cmd === 'git' && args[0] === 'rev-parse' ? 'abc123\n' : '', stderr: '' };
+        const result = { status: failure?.(cmd, args) ? failureCode : 0, stdout: cmd === 'git' && args[0] === 'rev-parse' ? 'abc123\n' : '', stderr: '' };
         const pending = beforeResult?.(cmd, args, options.cwd);
         return pending ? pending.then(() => result) : result;
       } });
     for (const row of rows) {
       const log = fs.readFileSync(row.slice(row.indexOf(temp)), 'utf8');
       assert.match(log, /^HEAD=abc123\n/);
-      assert.match(log, /EXIT=(0|1|7)\n$/);
+      assert.match(log, /EXIT=(0|1|7|78)\n$/);
     }
     return { code, calls, rows };
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
@@ -102,4 +102,12 @@ test('only fresh installs omit git-env from the vendored test list', async () =>
   for (const { args } of installs) {
     assert.deepEqual(args.slice(1), expected.filter(file => file !== 'git-env.test.mjs').map(file => path.join('scripts/tbs', file)));
   }
+});
+
+test('leak-check requires configuration and reports exit 78 as NOT RUN', async () => {
+  const { code, calls, rows } = await run(true, (cmd, args) => args[0] === 'scripts/leak-check.mjs', undefined, 78);
+  assert.equal(code, 1);
+  assert.match(rows.at(-1), /^NOT RUN leak-check /);
+  assert.deepEqual(calls.find(({ args }) => args[0] === 'scripts/leak-check.mjs').args,
+    ['scripts/leak-check.mjs', '--require']);
 });

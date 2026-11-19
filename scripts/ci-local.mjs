@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { findLeakFile, missingLeakFileMessage } from './leak-check.mjs';
 
 const fail = message => { throw new Error(message); };
 // Deliberately small YAML subset. Reject syntax rather than silently omit CI work.
@@ -103,6 +104,14 @@ export function formatLog(merge, head, node, body, code) {
 export function summary(rows) {
   return ['job\tresult\tlog path', ...rows.map(r => `${r.id}\t${r.result}\t${r.log || '-'}`)].join('\n');
 }
+export function privateNameCheck(root, rows, report = console.log) {
+  const file = findLeakFile(root);
+  if (!file) {
+    rows.push({ id: 'private-names', result: 'NOT RUN' });
+    report(missingLeakFileMessage);
+  }
+  return file;
+}
 function command(cmd, args, options = {}) {
   const r = spawnSync(cmd, args, { encoding: 'utf8', ...options });
   if (r.error || r.status !== 0) fail(`${cmd} failed: ${r.error?.message || r.stderr || r.stdout}`);
@@ -183,8 +192,8 @@ export function main(args = process.argv.slice(2)) {
     command('git', ['worktree', 'add', '--detach', tree, `origin/${info.baseRefName}`]); added = true;
     command('git', ['-c', 'user.name=Local CI', '-c', 'user.email=ci@example.invalid', '-c', 'commit.gpgsign=false', 'merge', '--no-ff', '--no-edit', head], { cwd: tree });
     const merge = command('git', ['rev-parse', 'HEAD'], { cwd: tree });
-    const privateFile = path.join(root, '.leakcheck.local');
-    if (fs.existsSync(privateFile)) fs.copyFileSync(privateFile, path.join(tree, '.leakcheck.local'));
+    const privateFile = privateNameCheck(root, rows);
+    if (privateFile) fs.copyFileSync(privateFile, path.join(tree, '.leakcheck.local'));
     const workflow = parseWorkflow(fs.readFileSync(path.join(tree, '.github/workflows/ci.yml'), 'utf8'));
     const dir = path.join(common, 'tbs-ci-local', `${pr}-${merge.slice(0, 12)}`);
     fs.mkdirSync(dir, { recursive: true });
@@ -192,7 +201,7 @@ export function main(args = process.argv.slice(2)) {
       if (!entry.run) { rows.push({ id: entry.id, result: 'NOT RUN' }); continue; }
       command('git', ['reset', '--hard', merge], { cwd: tree });
       command('git', ['clean', '-fdx'], { cwd: tree });
-      if (fs.existsSync(privateFile)) fs.copyFileSync(privateFile, path.join(tree, '.leakcheck.local'));
+      if (privateFile) fs.copyFileSync(privateFile, path.join(tree, '.leakcheck.local'));
       const log = path.join(dir, `job-${index}.log`);
       const jobTemp = path.join(temp, `job-${index}`); fs.mkdirSync(jobTemp);
       const code = runJob(entry, { tree, temp: jobTemp, merge, head, log });

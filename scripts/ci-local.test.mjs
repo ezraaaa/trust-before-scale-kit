@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseWorkflow, expandMatrix, actionKind, formatLog, summary, resolveNode, runJob } from './ci-local.mjs';
+import { parseWorkflow, expandMatrix, actionKind, formatLog, summary, resolveNode, runJob, privateNameCheck } from './ci-local.mjs';
 
 const source = fs.readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 test('parses workflow steps, names, shell and literal block', () => {
@@ -88,4 +88,14 @@ test('logs prove merge, PR head, Node, commands, output and final exit', () => {
     assert.equal(runJob({ node: '22', job: { steps: [{ uses: 'unknown/action@v1' }] } }, { tree: temp, temp, merge: 'm', head: 'h', log }), 1);
     assert.match(fs.readFileSync(log, 'utf8'), /Unsupported action/);
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test('local CI reports private-names NOT RUN when no pattern file is found', t => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-local-private-names-test-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const rows = [];
+  const messages = [];
+  assert.equal(privateNameCheck(temp, rows, message => messages.push(message)), null);
+  assert.match(summary(rows), /^private-names\tNOT RUN\t-$/m);
+  assert.match(messages.join('\n'), /no \.leakcheck\.local/);
 });
