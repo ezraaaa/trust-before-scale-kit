@@ -1,6 +1,6 @@
 ---
 name: method
-description: "The trust-before-scale working method: turn repeated failures into checks, keep the feature map and skill evals current, review owed self-merges, and only scale agents after trust is measured. Use at the start of a session in a project that has .agents/trust-before-scale.json or legacy .claude/trust-before-scale.json, or when deciding whether to run more agents."
+description: "How to work in a trust-before-scale project: session-start checks, turning repeat failures into checks, and when to add agents. Use at session start where .agents/trust-before-scale.json (or legacy .claude/trust-before-scale.json) exists, or before adding agents."
 ---
 
 # Trust before scale: how to work

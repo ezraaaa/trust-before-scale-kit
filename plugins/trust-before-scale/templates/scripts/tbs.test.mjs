@@ -244,7 +244,7 @@ test("all repeats must pass and old records count as one repeat", () => {
   assert.ok(recordProblems(partial, { hash: "h", settingsHash: "s", cases, repeats: 2 }).length);
 });
 
-test("suite runs every repeat and records passes/repeats", () => inRepo(({ root, put }) => {
+test("suite stops a gate case at its first failed repeat and records passes/repeats", () => inRepo(({ root, put }) => {
   putCase(put);
   let gates = 0;
   const runner = (command, args, options) => {
@@ -257,11 +257,51 @@ test("suite runs every repeat and records passes/repeats", () => inRepo(({ root,
   };
   assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [{ ...suite, repeats: 3 }] } }, run: runner, log: () => {} }), 1);
   const result = JSON.parse(readFileSync(join(root, "evals/routine/result.json"), "utf8")).cases[0];
-  assert.equal(gates, 3);
-  assert.equal(result.passes, 2);
+  assert.equal(gates, 2);
+  assert.equal(result.passes, 1);
   assert.equal(result.repeats, 3);
   assert.equal(result.pass, false);
+  assert.equal(result.evidence.length, 2);
 }));
+
+for (const caught of [false, true]) {
+  test(`suite ${caught ? "runs every passing repeat" : "stops after the first failed review"}`, () => inRepo(({ root, put }) => {
+    putCase(put, seed, { ...caseValue, expect: "review" });
+    const repeats = 3;
+    const exit = caught ? 0 : 1;
+    const expectedRuns = caught ? repeats : 1;
+    const evidence = "src/x.ts has incorrect count";
+    let reviews = 0;
+    let judgments = 0;
+    const run = (command, args, options) => {
+      if (command === "claude") {
+        reviews++;
+        return { status: 0, stdout: JSON.stringify({ result: evidence }) };
+      }
+      if (command === "codex") {
+        judgments++;
+        writeFileSync(args[args.indexOf("-o") + 1], JSON.stringify({ caught, evidence }));
+        return { status: 0 };
+      }
+      return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
+    };
+    const options = { root, config: { evals: { suites: [{ ...suite, repeats }] } }, run, log: () => {} };
+    assert.equal(evalMain(["routine"], options), exit);
+    assert.equal(reviews, expectedRuns);
+    assert.equal(judgments, expectedRuns);
+    const [result] = JSON.parse(readFileSync(join(root, "evals/routine/result.json"), "utf8")).cases;
+    assert.equal(result.repeats, repeats);
+    assert.equal(result.passes, caught ? repeats : 0);
+    assert.equal(result.pass, caught);
+    assert.equal(result.evidence.length, expectedRuns);
+    assert.equal(evalMain(["--check", "--fresh"], options), exit);
+    reviews = 0;
+    judgments = 0;
+    assert.equal(evalMain(["routine", "--case", "count"], options), exit);
+    assert.equal(reviews, expectedRuns);
+    assert.equal(judgments, expectedRuns);
+  }));
+}
 
 test("judge model is optional and the environment overrides suite settings", () => inRepo(({ root, put }) => {
   putCase(put, seed, { ...caseValue, expect: "review" });
@@ -470,7 +510,7 @@ test("a failed review case keeps the full review text and points to it", () => i
     const output = [];
     assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [suite] } }, run: runner, log: (line) => output.push(line) }), 1);
     const evidence = JSON.parse(output.find((line) => line.startsWith("{"))).evidence;
-    assert.equal(evidence.length, 2);
+    assert.equal(evidence.length, 1);
     for (const entry of evidence) {
       const storedPath = entry.match(/\(full review: (.+)\)$/)[1];
       assert.equal(isAbsolute(storedPath), false);

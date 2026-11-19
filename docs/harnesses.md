@@ -118,8 +118,8 @@ the setting off and makes no network requests.
 ## Routine and review passes
 
 Install/update the shared scripts with `tbs-init`; run
-`node scripts/tbs/routine.mjs plan --base origin/<base> --json` before implementation and before
-review. Rows use JavaScript regexes against repository-relative paths, union all matches, and fail
+`node scripts/tbs/routine.mjs plan --base origin/<base> --json --host <host>` before implementation and
+before review (`--host` keeps only that host's commands; without it the JSON lists every host). Rows use JavaScript regexes against repository-relative paths, union all matches, and fail
 on unmatched paths. Review the profile defaults for your layout: a new surface inside an existing
 file needs an explicit row/pattern. Added UI files conservatively require pre-build and post-build
 role/design review. The plan also includes local changes; PR evidence must describe the final clean

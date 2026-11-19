@@ -4,14 +4,17 @@
 
 Run from the repository root before review and release. No test may be skipped.
 
-Run `node scripts/gates.mjs` (or the repo-local `run-gates` skill). It runs, in order:
+Run `node scripts/gates.mjs` (or the repo-local `run-gates` skill). It runs these gates at the same time
+and reports them in this order:
 
 1. Repository script tests, vendored script tests and plugin tests.
 2. The merge-gate smoke test and generated harness check.
 3. Strict marketplace validation and plugin directory validation.
 4. The private-name leak check.
 5. Three fresh temporary git installs: `generic --ci`, `acme-mobile`, and a copy of the
-   generic profile installed via `--profile-dir`; each runs doctor and all vendored tests.
+   generic profile installed via `--profile-dir`; each runs doctor and every vendored test except
+   `git-env.test.mjs`, which reruns the others and runs in the vendored-tests gate (owner decision
+   19 Nov 2026).
 
 Each gate prints PASS or FAIL with a retained log in a temporary
 `tbs-gates-logs-*` directory. Logs record HEAD, commands, output and exit code; temporary

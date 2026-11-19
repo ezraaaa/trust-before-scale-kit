@@ -1,6 +1,6 @@
 ---
 name: update
-description: "Update the vendored Trust before scale kit from an installed plugin. Use when asked to update trust before scale, update the kit, run a kit update, or run tbs update."
+description: "Update the vendored kit from the installed plugin. Use for: update trust before scale, update the kit, kit update, tbs update."
 ---
 
 # Update the project kit

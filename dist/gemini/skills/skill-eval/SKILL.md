@@ -1,6 +1,6 @@
 ---
 name: skill-eval
-description: "Run, read or extend the evals that prove this project's review skills still catch real faults. Use when a review skill changed, before a release, when the eval check is red, or to add a seeded fault after a review missed something."
+description: "Run, read or extend the evals proving review skills still catch real faults. Use when a review skill changed, before a release, when the eval check is red, or to add a seeded fault after a review miss."
 ---
 
 # Skill evals
