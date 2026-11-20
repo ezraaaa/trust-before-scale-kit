@@ -1,6 +1,6 @@
 {
   "name": "trust-before-scale",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "description": "Verification before agent count: repeated failures become checks, a feature map walks read, evals for review skills, and a self-merging low-risk lane. Active only in projects that have .claude/trust-before-scale.json.",
   "author": {
     "name": "Ezra"
