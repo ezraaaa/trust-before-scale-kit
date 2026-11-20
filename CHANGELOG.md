@@ -16,6 +16,7 @@
 - The feature-map check fails with the fix hint when discovery finds no screens, instead of reporting that the map covers all 0 screens (#20).
 - Self-merge checks evals with `--check --fresh`, as `lanes.mjs` does: a record older than `maxAgeDays`, or one whose gate inputs changed, now blocks self-merge until the suite is rerun (#13).
 - Skill eval gate cases must pass on the clean base before the seeded failure counts, and record both exit codes (#21).
+- Skill eval fingerprints clean-base gate scripts, their relative dependencies and declared extra inputs, and `--check --fresh` fails on a changed or missing fingerprint; plain `--check` (CI) does not compare them (#14).
 
 ## 1.7.2
 
