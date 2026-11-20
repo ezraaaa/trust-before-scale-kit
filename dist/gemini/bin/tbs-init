@@ -42,6 +42,8 @@ if (!listTargets) {
 // Prepare before copying anything: malformed project hook files must never be overwritten.
 let codexHooks;
 const codexTarget = ".codex/hooks.json";
+const gateTarget = "scripts/tbs/merge-gate.py";
+const gateLookup = `f="$(git rev-parse --show-toplevel 2>/dev/null)/${gateTarget}"`;
 if (!listTargets && args.includes("--codex-hook")) {
   const codexPath = join(root, codexTarget);
   try {
@@ -52,13 +54,16 @@ if (!listTargets && args.includes("--codex-hook")) {
     for (const [event, entries] of Object.entries(codexHooks.hooks)) {
       if (!Array.isArray(entries) || entries.some(entry => !object(entry) || !Array.isArray(entry.hooks))) throw new Error(`invalid ${event} hook entries`);
       codexHooks.hooks[event] = entries.flatMap(entry => {
-        const hooks = entry.hooks.filter(hook => !/hooks\/merge-gate\.py(?=["'\s]|$)/.test(hook.command ?? ""));
+        const hooks = entry.hooks.filter(hook => {
+          const command = hook.command ?? "";
+          return hook.type !== "command" || !(/^python3\s+["']?(?:[A-Za-z]:)?[\\/].*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(command) ||
+            /^if f="\$\(git rev-parse --show-toplevel 2>\/dev\/null\)\/scripts\/tbs\/merge-gate\.py" && /.test(command));
+        });
         return hooks.length || entry.hooks.length === 0 ? [{ ...entry, hooks }] : [];
       });
     }
-    // Escape shell expansions as well as quotes in the absolute path.
-    const script = join(plugin, "hooks/merge-gate.py").replace(/[\\"$`]/g, "\\$&");
-    (codexHooks.hooks.PreToolUse ??= []).push({ matcher: "Bash", hooks: [{ type: "command", command: `python3 "${script}"`, timeout: 10 }] });
+    const command = `if ${gateLookup} && [ -f "$f" ]; then exec python3 "$f"; fi; echo "trust-before-scale: merge gate not found at ${gateTarget}; command not checked" >&2`;
+    (codexHooks.hooks.PreToolUse ??= []).push({ matcher: "Bash", hooks: [{ type: "command", command, timeout: 10 }] });
   } catch (error) {
     console.error(`Cannot update .codex/hooks.json: ${error.message}`); process.exit(1);
   }
@@ -91,6 +96,7 @@ function placeTree(fromDir, toDir) {
 const version = JSON.parse(readFileSync(join(plugin, ".claude-plugin", "plugin.json"), "utf8")).version;
 const versionTarget = "scripts/tbs/VERSION";
 placeTree(join(plugin, "templates", "scripts"), "scripts/tbs");
+place(join(plugin, "hooks/merge-gate.py"), gateTarget);
 if (args.includes("--ci")) {
   const workflow = ".github/workflows/trust-before-scale.yml";
   if (listTargets || !update || !existsSync(join(root, workflow))) place(join(plugin, "templates", "ci", "trust-before-scale.yml"), workflow);

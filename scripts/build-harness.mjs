@@ -66,6 +66,7 @@ for (const entry of readdirSync(templateScripts, { withFileTypes: true })) {
   }
 }
 files.set(`${vendor}/config.schema.json`, readFileSync(join(root, plugin, 'schema/config.schema.json')));
+files.set(`${vendor}/merge-gate.py`, readFileSync(join(root, plugin, 'hooks/merge-gate.py')));
 files.set(`${vendor}/VERSION`, `${source.version}\n`);
 const brief = 'docs/trust-before-scale/brief-template.md';
 files.set(brief, readFileSync(join(root, plugin, 'templates/docs/brief-template.md')));

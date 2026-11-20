@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -173,6 +173,7 @@ test('passes --codex-hook on request or when the existing Bash hook belongs to t
     ['echo unrelated', [], ['--update']],
     ['echo unrelated', ['--codex-hook'], ['--update', '--codex-hook']],
     ['python3 "/old kit/hooks/merge-gate.py"', [], ['--update', '--codex-hook']],
+    ['if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ]; then exec python3 "$f"; fi', [], ['--update', '--codex-hook']],
   ]) {
     put('.codex/hooks.json', JSON.stringify({ hooks: { PreToolUse: [{
       matcher: 'Bash', hooks: [{ type: 'command', command }],
@@ -183,6 +184,30 @@ test('passes --codex-hook on request or when the existing Bash hook belongs to t
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(installed().args, expected);
   }
+});
+
+test('update migrates a legacy Codex hook and refreshes the vendored gate', t => {
+  const { root, cache, put, git, commit, run } = fixture(t);
+  const source = cache('1.10.0');
+  cpSync(new URL('../../', import.meta.url), source, { recursive: true });
+  writeFileSync(join(source, '.claude-plugin/plugin.json'), JSON.stringify({ version: '1.10.0' }));
+  const unrelated = { type: 'command', command: 'echo keep' };
+  put('.codex/hooks.json', JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [
+    unrelated, { type: 'command', command: 'python3 "/old kit/hooks/merge-gate.py"' },
+  ] }] } }));
+  const gate = 'scripts/tbs/merge-gate.py';
+  put(gate, '# stale\n');
+  put('.agents/trust-before-scale.json', JSON.stringify({ project: 'test', mergeGate: {} }));
+  git('switch', '-c', 'feature/example');
+  commit();
+  const result = run();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const commands = JSON.parse(readFileSync(join(root, '.codex/hooks.json'), 'utf8'))
+    .hooks.PreToolUse.flatMap(entry => entry.hooks.map(hook => hook.command));
+  assert.equal(commands.length, 2);
+  assert.equal(commands[0], unrelated.command);
+  assert.match(commands[1], /scripts\/tbs\/merge-gate\.py/);
+  assert.deepEqual(readFileSync(join(root, gate)), readFileSync(join(source, 'hooks/merge-gate.py')));
 });
 
 test('dry run shows the selection and branch action without changing files, refs or the index', t => {

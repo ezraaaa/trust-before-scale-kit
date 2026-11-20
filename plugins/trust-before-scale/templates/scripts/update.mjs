@@ -64,7 +64,8 @@ function hasCodexHook(root) {
   }
   // Match the kit entry even when it points to a previous plugin location.
   return entries.some(entry => entry.matcher === 'Bash' && entry.hooks?.some(hook =>
-    hook.type === 'command' && /hooks\/merge-gate\.py(?=["'\s]|$)/.test(hook.command ?? '')));
+    hook.type === 'command' && (/^python3\s+["']?(?:[A-Za-z]:)?[\\/].*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(hook.command ?? '') ||
+      /^if f="\$\(git rev-parse --show-toplevel 2>\/dev\/null\)\/scripts\/tbs\/merge-gate\.py" && /.test(hook.command ?? ''))));
 }
 
 function main(args) {
