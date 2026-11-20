@@ -286,16 +286,18 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
     if (item.expect === "gate") {
       // The clean run gets its own throwaway checkout, so nothing it writes (ignored files, nested
       // repos, submodule state) reaches the seeded run. Only linkDirs are shared, by design.
+      // Both runs use the case branch, one checkout at a time, so only the seed differs.
       const baseTree = join(scratch, "base");
-      must(run("git", ["worktree", "add", "-q", "--detach", baseTree, base], { cwd: root }), "base worktree add");
+      must(run("git", ["worktree", "add", "-q", "-b", branch, baseTree, base], { cwd: root }), "base worktree add");
       let clean;
       try {
         linkDirectories(root, baseTree, suite.linkDirs ?? []);
         clean = run("sh", ["-c", item.gate], { cwd: baseTree });
       } finally {
+        // Targeted cleanup only; never prune other worktrees.
         run("git", ["worktree", "remove", "--force", baseTree], { cwd: root });
         rmSync(baseTree, { recursive: true, force: true });
-        run("git", ["worktree", "prune"], { cwd: root });
+        run("git", ["worktree", "remove", "--force", baseTree], { cwd: root });
       }
       exits.baseExit = clean.status ?? null;
       if (clean.status !== 0 || clean.signal || clean.error) {
@@ -304,7 +306,7 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
           : `the gate already fails on the clean base (exit ${exits.baseExit})`;
         return { id: item.id, expect: item.expect, pass: false, evidence, ...exits };
       }
-      must(run("git", ["worktree", "add", "-q", "-b", branch, worktree, base], { cwd: root }), "worktree add");
+      must(run("git", ["worktree", "add", "-q", worktree, branch], { cwd: root }), "worktree add");
       added = true;
     } else {
       const options = { cwd: root, env: { ...process.env, GIT_INDEX_FILE: join(scratch, "index"),
