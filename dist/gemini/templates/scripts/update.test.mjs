@@ -176,6 +176,7 @@ test('passes --codex-hook on request or when the existing Bash hook belongs to t
     ['python3 "/old kit/hooks/merge-gate.py"', [], ['--update', '--codex-hook']],
     ['if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ]; then exec python3 "$f"; fi', [], ['--update']],
     [gateCommandFor('a'.repeat(64)), [], ['--update', '--codex-hook']],
+    [gateCommandFor('c'.repeat(64)).replace('sys.exit(0)', 'sys.exit(1)'), [], ['--update']],
   ]) {
     put('.codex/hooks.json', JSON.stringify({ hooks: { PreToolUse: [{
       matcher: 'Bash', hooks: [{ type: 'command', command }],
