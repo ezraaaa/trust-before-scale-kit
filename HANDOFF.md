@@ -8,7 +8,8 @@ a claim to check against git and GitHub.
 
 ## State (20 Nov 2026)
 
-- Released: 1.7.2 (`v1.7.2` on `main`, `gemini` published). `develop` is at or after `e5c72ed`.
+- Released: 1.7.2 (`v1.7.2` on `main`, `gemini` published). `develop` is at or after `9da0cc5`, with all of
+  1.7.3's code merged and unreleased.
 - The kit now uses itself at adoption level 1: `.agents/trust-before-scale.json`, the autopilot extension
   `.agents/skills/autopilot/SKILL.md`, generated `scripts/tbs/`, `docs/trust-before-scale/`.
   `lanes.mjs` allows one lane.
@@ -19,6 +20,15 @@ a claim to check against git and GitHub.
 - Merged into `develop` on 20 Nov 2026: PR 35 fixes #24, the private-name check now finds `.leakcheck.local`
   from a worktree (worktree first, then the main checkout) and reports NOT RUN, never PASS, when it is
   missing (`6f520a2`); PR 34 records the owner's level-4 plan-approval ruling, issue #33 (`e5c72ed`).
+- 1.7.3 slices merged into `develop` on 20 Nov 2026, owner-approved plan and each merge owner-approved:
+  PR 39 (#22, #17), PR 40 (#20), PR 42 (#13), PR 43 (#21), PR 44 (#14), PR 45 (#16, evidence rule 4),
+  PR 46 (#18), PR 47 (the two `update.mjs --branch` Backlog items). All those issues are closed.
+  Owner decisions 20 Nov 2026: plain `skill-eval --check` (CI) does not compare gate fingerprints, only
+  `--fresh` does (PR 44); the Codex hook pins the vendored gate's SHA-256 (PR 46).
+  Documented limits, not fixed: gate eval runs share repository refs, config and `linkDirs` (PR 43); import
+  scanning for fingerprints is pattern-based, `gateInputs` covers the rest (PR 44); `/terms`-style
+  mustName terms keep no boundary on a punctuation edge, by design (PR 45); a base `VERSION` stored as a
+  symlink reads as its target name, fail-safe (PR 47).
 - Known leak-check limits (#37, low priority, not in 1.7.3), both fail safe as NOT RUN, not fixed: linked worktrees of a main checkout made with
   `--separate-git-dir`, and `--history` run from a subdirectory holding its own `.leakcheck.local`.
 - Issue #29 (supervision ladder) is done: merged in PR 30 and PR 31 (unreleased), closed 20 Nov 2026. #24 and #33 are closed too.
@@ -36,10 +46,12 @@ a claim to check against git and GitHub.
 
 ## Owner list (parked questions)
 
-1. Raise the kit's adoption level? Level 2 needs a feature map (the kit has no screens): `doctor` now accepts a
+1. Release 1.7.3 (`cut-release`, needs the owner's go-ahead in that session). Recommended: yes, before
+   25 Nov 2026, so the projects' eval reruns (evidence rule 4) happen once, on 1.7.3.
+2. Raise the kit's adoption level? Level 2 needs a feature map (the kit has no screens): `doctor` now accepts a
    project that keeps its own map (owner decision 19 Nov 2026), so the kit could map its skills or keep none. Recommended: wait until
-   the gate bugs below are fixed.
-2. #15 is a design question for the owner.
+   #41 (flaky tests) is fixed.
+3. #15 is a design question for the owner.
 
 ## Lessons to record at level 3
 
@@ -55,23 +67,25 @@ a claim to check against git and GitHub.
 | silent-skipped-check | `scripts/leak-check.mjs`, `scripts/ci-local.mjs` | review-finding | #24: private-name check skipped in worktrees, reported PASS |
 | single-gate-log-merge | `.agents/skills/autopilot/SKILL.md` | review-finding | PR 23 routine: merge recipe tested one gate's log; now one log of the whole run |
 | agent-can-loosen-own-rules | `.agents/trust-before-scale.json` | review-finding | PR 23 routine: config and extensions had no review passes or stop rule; added `kit-governance` row |
+| seeded-vs-unseeded-fingerprint | `templates/scripts/skill-eval.mjs` | review-finding | PR 42/44: the record hashed the seeded gate, the check the unseeded one; fixed in PR 44 |
+| hook-runs-unverified-code | `bin/tbs-init` | review-finding | PR 46: a trusted Codex hook ran whatever gate the branch held; now SHA-256 pinned |
+| flaky-gate-under-load | `templates/scripts/first-hour.test.mjs`, `tests/update-notice.test.mjs` | gate-red-no-change | #41: gates failed at load average ~72, green on rerun |
 | symlinked-generated-output | `scripts/build-harness.mjs` | review-finding | PR 23 routine: `--check` read through a symlinked `scripts/tbs`; now rejected |
 
 ## Next work, in order
 
-1. The next patch (1.7.3): open issues #13, #14, #16, #17, #18, #20, #21 and #22 (#24 fixed in PR 35), plus the deferred items in
-   `docs/maintaining.md` "Backlog". Plan it first, then release as usual. Gate-code changes need the
-   owner's read (autopilot extension, "Stop and ask").
-2. Before updating the owner's projects to the next release, check each config has an explicit `level`:
+1. Release 1.7.3 once the owner says go (owner list 1): `cut-release`, then publish `gemini`. Open gate bugs
+   (the autopilot extension points here): #41 flaky tests under load, #37 leak-check limits (low). Neither
+   blocks the release; each gate-code fix is a plan for the owner first.
+2. Before updating the owner's projects to 1.7.3, check each config has an explicit `level`:
    a missing `level` now means level 1 (one lane, no self-merge, evals and learn off). Four of the five were
-   installed before levels existed; set the level the owner wants on each project's branch.
-3. Rerun each project's eval suite before 25 Nov 2026, or after the 1.7.3 update if it lands first.
+   installed before levels existed; set the level the owner wants on each project's branch. After updating:
+   rerun each project's eval suites (evidence rule 4), and re-trust the Codex hook in `/hooks` where used.
+3. Rerun each project's eval suite before 25 Nov 2026 (on 1.7.3 if it is released first).
 4. A public demo project at level 2.
 5. A long-form explainer.
 
 ## Next exact action
 
-Plan the 1.7.3 patch (Next work 1), starting with the owner's pick from the daily triage
-(`daily-issue-triage-tbs-kit`). Write `PLAN.md`, get the owner's approval, then implement on a feature branch
-from `develop`.
-Each gate-code change is a plan for the owner first (autopilot extension, "Stop and ask").
+Ask the owner for the 1.7.3 release go-ahead (owner list 1). On a yes, run `cut-release` for 1.7.3 from
+`develop`; otherwise plan #41 for the owner.
