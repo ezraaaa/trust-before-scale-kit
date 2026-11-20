@@ -27,7 +27,7 @@ test('Codex hook warning is advisory and gives the installer command', () => {
     hookFile(join(root, 'kit dir/hooks/merge-gate.py'));
     assert.deepEqual(check(), []);
     const emptyDigest = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-    const command = `if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ] && [ "$(python3 -c 'x' "$f" 2>/dev/null)" = "${emptyDigest}" ]; then exec python3 "$f"; fi`;
+    const command = `if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ]; then exec python3 -I -c 'x' "$f" "${emptyDigest}" "note"; fi`;
     writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command }] }] } }));
     assert.match(check()[0], /--update --codex-hook/);
     mkdirSync(join(root, 'scripts/tbs'), { recursive: true });

@@ -27,8 +27,9 @@ For an existing install, run `node "<plugin-root>/bin/tbs-init" --update --codex
 This merges `.codex/hooks.json`, preserving unrelated hooks and replacing any earlier kit hook
 with a command that locates `scripts/tbs/merge-gate.py` relative to the Git checkout root. The
 installer copies the gate there so the committed hook works on teammates' machines and after a
-plugin move. The command pins the gate's SHA-256: the hook runs the vendored script only when it
-matches, so a branch that edits the gate cannot run new code under trust you already gave. If the
+plugin move. The command pins the gate's SHA-256 (line endings normalised): one isolated Python
+process reads the vendored script once, checks it and runs those same bytes, so a branch that edits
+the gate, or adds a local module, cannot run new code under trust you already gave. If the
 script is missing or differs, the hook writes a note to stderr and allows the command through; branch
 protection still guards merges. Each kit update writes a new digest, so trust the hook again in Codex
 `/hooks` afterwards. `doctor` warns when the gate is missing or changed. Malformed hook JSON stops

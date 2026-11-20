@@ -48,12 +48,24 @@ const gateLookup = `f="$(git rev-parse --show-toplevel 2>/dev/null)/${gateTarget
 // The hook runs the vendored gate only when its SHA-256 matches the one written at install, so a branch
 // that edits the gate cannot run new code under the hook trust already given (owner decision 20 Nov 2026).
 // An update writes a new digest, which changes the command, so Codex asks for trust again.
-const gateDigest = createHash("sha256").update(readFileSync(join(plugin, "hooks/merge-gate.py"))).digest("hex");
-const gateHash = `python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$f" 2>/dev/null`;
-const gateCommandFor = (digest) => `if ${gateLookup} && [ -f "$f" ] && [ "$(${gateHash})" = "${digest}" ]; then exec python3 "$f"; fi; echo "trust-before-scale: merge gate at ${gateTarget} is missing or differs from sha256 ${digest}; command not checked. Run the kit update with --codex-hook, then trust the hook again." >&2`;
+// The digest covers the gate with CRLF normalised to LF, so Git line-ending conversion keeps it stable.
+const gateBytes = (file) => readFileSync(file).toString("latin1").replaceAll("\r\n", "\n");
+const gateDigest = createHash("sha256").update(gateBytes(join(plugin, "hooks/merge-gate.py")), "latin1").digest("hex");
+const gateNote = (digest) => `trust-before-scale: merge gate at ${gateTarget} is missing or differs from sha256 ${digest}; command not checked. Run the kit update with --codex-hook, then trust the hook again.`;
+// One isolated Python process (-I: no checkout-local imports, no PYTHONPATH) reads the gate once, checks
+// that buffer's digest and runs the same buffer, so nothing it did not verify can run. stdin stays the payload.
+const gateRunner = (digest) => `python3 -I -c 'import hashlib,sys;p=sys.argv[1];d=open(p,"rb").read().replace(b"\\r\\n",b"\\n");hashlib.sha256(d).hexdigest()!=sys.argv[2] and (print(sys.argv[3],file=sys.stderr),sys.exit(0));sys.argv=[p];exec(compile(d,p,"exec"),{"__name__":"__main__","__file__":p})' "$f" "${digest}" "${gateNote(digest)}"`;
+const gateCommandFor = (digest) => `if ${gateLookup} && [ -f "$f" ]; then exec ${gateRunner(digest)}; fi; echo "${gateNote(digest)}" >&2`;
 const gateCommand = gateCommandFor(gateDigest);
 const kitGateCommand = new RegExp(`^${gateCommandFor("DIGEST").replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll("DIGEST", "[0-9a-f]{64}")}$`);
 if (!listTargets && args.includes("--codex-hook")) {
+  // A plain install keeps an existing gate; a hook pinned to a different gate would never check anything.
+  const existingGate = join(root, gateTarget);
+  if (!update && !force && existsSync(existingGate) &&
+      createHash("sha256").update(gateBytes(existingGate), "latin1").digest("hex") !== gateDigest) {
+    console.error(`Cannot add the Codex hook: ${gateTarget} differs from this kit's gate. Run tbs-init --update --codex-hook.`);
+    process.exit(1);
+  }
   const codexPath = join(root, codexTarget);
   try {
     codexHooks = existsSync(codexPath) ? JSON.parse(readFileSync(codexPath, "utf8")) : {};

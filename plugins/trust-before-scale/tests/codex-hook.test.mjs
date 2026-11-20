@@ -96,6 +96,22 @@ test('a changed vendored gate is not run under the existing trust', () => fixtur
   assert.doesNotMatch(result.stderr, /changed gate ran/);
   assert.match(result.stderr, /differs from sha256 [0-9a-f]{64}.*command not checked/);
 }));
+test('the gate stays enforced with CRLF line endings and ignores checkout-local Python modules', () => fixture(root => {
+  install(root);
+  writeFileSync(join(root, gate), readFileSync(join(root, gate), 'utf8').replaceAll('\n', '\r\n'));
+  for (const dir of ['', 'scripts/tbs']) writeFileSync(join(root, dir, 'json.py'), 'import sys\nprint("local module ran", file=sys.stderr)\n');
+  const merge = runHook(root, 'gh pr merge 1 --squash');
+  assert.equal(merge.status, 2, merge.stderr);
+  assert.doesNotMatch(merge.stderr, /local module ran/);
+}));
+test('adding the hook over a different existing gate stops and points to --update', () => fixture(root => {
+  mkdirSync(join(root, 'scripts/tbs'), { recursive: true });
+  writeFileSync(join(root, gate), '# older gate\n');
+  const result = spawnSync(process.execPath, [join(plugin, 'bin/tbs-init'), 'generic', '--codex-hook'], { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /--update --codex-hook/);
+  assert.equal(existsSync(join(root, '.codex/hooks.json')), false);
+}));
 test('an update replaces a hook pinned to an older gate digest', () => fixture(root => {
   install(root);
   const hooks = read(root);
