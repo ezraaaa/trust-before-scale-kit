@@ -86,7 +86,26 @@ test('missing vendored gate allows the command and prints a note', () => fixture
   rmSync(join(root, gate), { force: true });
   const result = runHook(root, 'gh pr merge 1 --squash');
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stderr, /merge gate not found at scripts\/tbs\/merge-gate\.py.*command not checked/);
+  assert.match(result.stderr, /merge gate at scripts\/tbs\/merge-gate\.py is missing or differs.*command not checked/);
+}));
+test('a changed vendored gate is not run under the existing trust', () => fixture(root => {
+  install(root);
+  writeFileSync(join(root, gate), 'import sys\nprint("changed gate ran", file=sys.stderr)\nsys.exit(2)\n');
+  const result = runHook(root, 'gh pr merge 1 --squash');
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stderr, /changed gate ran/);
+  assert.match(result.stderr, /differs from sha256 [0-9a-f]{64}.*command not checked/);
+}));
+test('an update replaces a hook pinned to an older gate digest', () => fixture(root => {
+  install(root);
+  const hooks = read(root);
+  const old = hooks.hooks.PreToolUse.at(-1).hooks[0].command.replace(/[0-9a-f]{64}/g, '0'.repeat(64));
+  hooks.hooks.PreToolUse.at(-1).hooks[0].command = old;
+  writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify(hooks));
+  install(root, ['--update', '--codex-hook']);
+  const commands = read(root).hooks.PreToolUse.flatMap(entry => entry.hooks.map(hook => hook.command));
+  assert.equal(commands.filter(command => command.includes('scripts/tbs/merge-gate.py')).length, 1);
+  assert.doesNotMatch(commands.join('\n'), /0{64}/);
 }));
 test('malformed JSON and invalid hook structure stop without overwriting or installing files', () => fixture(root => {
   mkdirSync(join(root, '.codex'));

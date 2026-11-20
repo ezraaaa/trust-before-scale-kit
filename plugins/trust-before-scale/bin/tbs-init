@@ -7,6 +7,7 @@
 const { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } = require("node:fs");
 const { dirname, join, relative, resolve } = require("node:path");
 const { execFileSync } = require("node:child_process");
+const { createHash } = require("node:crypto");
 
 // Keep Git commands scoped to their working directory when running inside a Git hook.
 for (const name of [
@@ -44,7 +45,14 @@ let codexHooks;
 const codexTarget = ".codex/hooks.json";
 const gateTarget = "scripts/tbs/merge-gate.py";
 const gateLookup = `f="$(git rev-parse --show-toplevel 2>/dev/null)/${gateTarget}"`;
-const gateCommand = `if ${gateLookup} && [ -f "$f" ]; then exec python3 "$f"; fi; echo "trust-before-scale: merge gate not found at ${gateTarget}; command not checked" >&2`;
+// The hook runs the vendored gate only when its SHA-256 matches the one written at install, so a branch
+// that edits the gate cannot run new code under the hook trust already given (owner decision 20 Nov 2026).
+// An update writes a new digest, which changes the command, so Codex asks for trust again.
+const gateDigest = createHash("sha256").update(readFileSync(join(plugin, "hooks/merge-gate.py"))).digest("hex");
+const gateHash = `python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$f" 2>/dev/null`;
+const gateCommandFor = (digest) => `if ${gateLookup} && [ -f "$f" ] && [ "$(${gateHash})" = "${digest}" ]; then exec python3 "$f"; fi; echo "trust-before-scale: merge gate at ${gateTarget} is missing or differs from sha256 ${digest}; command not checked. Run the kit update with --codex-hook, then trust the hook again." >&2`;
+const gateCommand = gateCommandFor(gateDigest);
+const kitGateCommand = new RegExp(`^${gateCommandFor("DIGEST").replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll("DIGEST", "[0-9a-f]{64}")}$`);
 if (!listTargets && args.includes("--codex-hook")) {
   const codexPath = join(root, codexTarget);
   try {
@@ -60,7 +68,7 @@ if (!listTargets && args.includes("--codex-hook")) {
         const hooks = entry.hooks.filter(hook => {
           const command = hook.command ?? "";
           return !kit || hook.type !== "command" || !(/^python3\s+["']?(?:[A-Za-z]:)?[\\/].*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(command) ||
-            command === gateCommand);
+            kitGateCommand.test(command));
         });
         return hooks.length || entry.hooks.length === 0 ? [{ ...entry, hooks }] : [];
       });

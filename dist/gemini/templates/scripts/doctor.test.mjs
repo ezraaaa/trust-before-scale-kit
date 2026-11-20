@@ -26,12 +26,15 @@ test('Codex hook warning is advisory and gives the installer command', () => {
     writeFileSync(join(root, 'kit dir/hooks/merge-gate.py'), '');
     hookFile(join(root, 'kit dir/hooks/merge-gate.py'));
     assert.deepEqual(check(), []);
-    const command = 'if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ]; then exec python3 "$f"; fi';
+    const emptyDigest = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    const command = `if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ] && [ "$(python3 -c 'x' "$f" 2>/dev/null)" = "${emptyDigest}" ]; then exec python3 "$f"; fi`;
     writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command }] }] } }));
     assert.match(check()[0], /--update --codex-hook/);
     mkdirSync(join(root, 'scripts/tbs'), { recursive: true });
     writeFileSync(join(root, 'scripts/tbs/merge-gate.py'), '');
     assert.deepEqual(check(), []);
+    writeFileSync(join(root, 'scripts/tbs/merge-gate.py'), '# edited on a branch\n');
+    assert.match(check()[0], /missing or changed/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
