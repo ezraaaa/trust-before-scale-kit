@@ -8,8 +8,8 @@ a claim to check against git and GitHub.
 
 ## State (20 Nov 2026)
 
-- Released: 1.7.2 (`v1.7.2` on `main`, `gemini` published). `develop` is at or after `9da0cc5`, with all of
-  1.7.3's code merged and unreleased.
+- Released: 1.7.3 on 20 Nov 2026 with the owner's go-ahead (`v1.7.3` on `main` at `e306696`, GitHub release
+  by the workflow, `gemini` published at `032df2b`). `develop` is at or after `338f644`; nothing unreleased.
 - The kit now uses itself at adoption level 1: `.agents/trust-before-scale.json`, the autopilot extension
   `.agents/skills/autopilot/SKILL.md`, generated `scripts/tbs/`, `docs/trust-before-scale/`.
   `lanes.mjs` allows one lane.
@@ -46,8 +46,8 @@ a claim to check against git and GitHub.
 
 ## Owner list (parked questions)
 
-1. Release 1.7.3 (`cut-release`, needs the owner's go-ahead in that session). Recommended: yes, before
-   25 Nov 2026, so the projects' eval reruns (evidence rule 4) happen once, on 1.7.3.
+1. Update the owner's five projects to 1.7.3 (each on a project branch, each project's own approval rules).
+   Recommended: before 25 Nov 2026, so the eval reruns (evidence rule 4) happen once, on 1.7.3.
 2. Raise the kit's adoption level? Level 2 needs a feature map (the kit has no screens): `doctor` now accepts a
    project that keeps its own map (owner decision 19 Nov 2026), so the kit could map its skills or keep none. Recommended: wait until
    #41 (flaky tests) is fixed.
@@ -74,18 +74,20 @@ a claim to check against git and GitHub.
 
 ## Next work, in order
 
-1. Release 1.7.3 once the owner says go (owner list 1): `cut-release`, then publish `gemini`. Open gate bugs
-   (the autopilot extension points here): #41 flaky tests under load, #37 leak-check limits (low). Neither
-   blocks the release; each gate-code fix is a plan for the owner first.
+1. Open gate bugs (the autopilot extension points here): #41 flaky tests under load, #37 leak-check limits
+   (low). Each gate-code fix is a plan for the owner first.
 2. Before updating the owner's projects to 1.7.3, check each config has an explicit `level`:
    a missing `level` now means level 1 (one lane, no self-merge, evals and learn off). Four of the five were
    installed before levels existed; set the level the owner wants on each project's branch. After updating:
    rerun each project's eval suites (evidence rule 4), and re-trust the Codex hook in `/hooks` where used.
-3. Rerun each project's eval suite before 25 Nov 2026 (on 1.7.3 if it is released first).
+3. Rerun each project's eval suite on 1.7.3 before 25 Nov 2026.
 4. A public demo project at level 2.
 5. A long-form explainer.
 
 ## Next exact action
 
-Ask the owner for the 1.7.3 release go-ahead (owner list 1). On a yes, run `cut-release` for 1.7.3 from
-`develop`; otherwise plan #41 for the owner.
+Ask the owner whether to update the five projects to 1.7.3 now (owner list 1), checking each config's
+`level` first; otherwise plan #41 for the owner.
+
+Release note: git-flow 0.4.1 refuses `release start` in a linked worktree when `develop` is checked out
+elsewhere ("not a valid commit on 'develop'"); run `cut-release` from the main checkout.

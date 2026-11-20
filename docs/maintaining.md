@@ -104,9 +104,9 @@ Put Codex worktrees under `~/Development/tools/tbs-kit-<lane>` (its sandbox only
 review, then commit and merge one lane at a time. Each brief lists the lane's allowed files with full
 paths, including any existing test files the lane may need to update.
 
-## State (19 Nov 2026)
+## State (20 Nov 2026)
 
-1.7.2 is released: tag `v1.7.2` on `main`, with the `gemini` branch published. This public repository
+1.7.3 is released (20 Nov 2026): tag `v1.7.3` on `main`, with the `gemini` branch published. This public repository
 starts from a fresh history at 1.5.0; earlier history stays private with the owner. Hosted CI runs and is
 green on `main` (Linux and macOS, Node 20 and 22); the release workflow publishes releases.
 
