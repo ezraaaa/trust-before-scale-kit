@@ -230,7 +230,7 @@ export function run(argv, { root = ROOT, config = loadConfig(root), ghRun = gh, 
   if (adoptionLevel(config) >= 4) {
     const lines = [];
     try {
-      if (evalCheck(["--check"], { root, config, log: line => lines.push(line) }) !== 0) {
+      if (evalCheck(["--check", "--fresh"], { root, config, log: line => lines.push(line) }) !== 0) {
         reasons.push(...lines.map(line => `eval: ${line}`));
       }
     } catch (error) {

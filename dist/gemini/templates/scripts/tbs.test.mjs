@@ -958,6 +958,28 @@ test("self-merge checks configured evals before it can write", () => inRepo(({ r
   assert.match(output.join("\n"), /no result\.json/);
 }));
 
+test("self-merge refuses an eval record older than maxAgeDays, like lanes (#13)", () => inRepo(({ root, put }) => {
+  putCase(put);
+  const evalOptions = { root, config: { level: 4, evals: { suites: [suite] } }, log: () => {},
+    run: (command, args, opts) => spawnSync(command, command === "git" ? ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args] : args, { encoding: "utf8", ...opts }) };
+  assert.equal(evalMain(["routine"], evalOptions), 0);
+  const path = join(root, "evals/routine/result.json");
+  const record = JSON.parse(readFileSync(path, "utf8"));
+  writeFileSync(path, JSON.stringify({ ...record, date: "2020-01-01T00:00:00Z" }));
+  assert.equal(evalMain(["--check"], evalOptions), 0);
+  const output = [];
+  const options = { root, config: { ...config, evals: { suites: [suite] } },
+    ghRun: args => {
+      if (args[1] === "view") return JSON.stringify(info);
+      if (args[0] === "api") return JSON.stringify([[{ filename: "docs/a.md", status: "added" }]]);
+      assert.fail(`unexpected write: ${args}`);
+    },
+    read: path => path === "r" ? reviewLog() : path === "x" ? "clean" : gateLog(),
+    log: line => output.push(line) };
+  assert.equal(run(["7", "--gate", "g", "--review", "r", "--dry-run"], options), 1);
+  assert.match(output.join("\n"), /eval: .*older than 7 days/);
+}));
+
 test("fresh eval checks detect script changes while old records still pass", () => inRepo(({ root, git, put }) => {
   const script = "scripts/gate.mjs";
   put(script, "console.log('src/x.ts incorrect'); process.exitCode = 1;\n");
