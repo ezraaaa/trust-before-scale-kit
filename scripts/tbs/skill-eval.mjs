@@ -284,10 +284,19 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
       copyLinks(root, suite, runLinks);
     }
     if (item.expect === "gate") {
-      must(run("git", ["worktree", "add", "-q", "-b", branch, worktree, base], { cwd: root }), "worktree add");
-      added = true;
-      const links = linkDirectories(root, worktree, suite.linkDirs ?? []);
-      const clean = run("sh", ["-c", item.gate], gateOptions);
+      // The clean run gets its own throwaway checkout, so nothing it writes (ignored files, nested
+      // repos, submodule state) reaches the seeded run. Only linkDirs are shared, by design.
+      const baseTree = join(scratch, "base");
+      must(run("git", ["worktree", "add", "-q", "--detach", baseTree, base], { cwd: root }), "base worktree add");
+      let clean;
+      try {
+        linkDirectories(root, baseTree, suite.linkDirs ?? []);
+        clean = run("sh", ["-c", item.gate], { cwd: baseTree });
+      } finally {
+        run("git", ["worktree", "remove", "--force", baseTree], { cwd: root });
+        rmSync(baseTree, { recursive: true, force: true });
+        run("git", ["worktree", "prune"], { cwd: root });
+      }
       exits.baseExit = clean.status ?? null;
       if (clean.status !== 0 || clean.signal || clean.error) {
         const evidence = exits.baseExit === null || clean.signal || clean.error
@@ -295,10 +304,8 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
           : `the gate already fails on the clean base (exit ${exits.baseExit})`;
         return { id: item.id, expect: item.expect, pass: false, evidence, ...exits };
       }
-      // Keep the transient links, and anything the base run wrote, out of the seed commit.
-      for (const path of links) rmSync(path, { force: true });
-      must(run("git", ["reset", "-q", "--hard"], { cwd: worktree }), "reset after the base run");
-      must(run("git", ["clean", "-qffdx"], { cwd: worktree }), "clean after the base run");
+      must(run("git", ["worktree", "add", "-q", "-b", branch, worktree, base], { cwd: root }), "worktree add");
+      added = true;
     } else {
       const options = { cwd: root, env: { ...process.env, GIT_INDEX_FILE: join(scratch, "index"),
         GIT_AUTHOR_NAME: "Snapshot", GIT_AUTHOR_EMAIL: "snapshot@example.invalid",

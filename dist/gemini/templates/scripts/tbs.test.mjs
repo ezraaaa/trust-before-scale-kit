@@ -651,7 +651,7 @@ test("trailing slash hidden paths reject targets and suite overlaps", () => {
 test("failed gate worktree add removes the branch it created", () => inRepo(({ root, git }) => {
   const before = git("branch", "--list");
   const runner = (command, args, options) => {
-    if (command === "git" && args[0] === "worktree" && args[1] === "add") {
+    if (command === "git" && args[0] === "worktree" && args[1] === "add" && args.includes("-b")) {
       git("branch", args[4], "HEAD");
       return { status: 1, stderr: "simulated worktree failure" };
     }
