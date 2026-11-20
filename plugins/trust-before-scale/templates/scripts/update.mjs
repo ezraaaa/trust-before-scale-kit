@@ -142,8 +142,12 @@ function main(args) {
   const branch = git(root, 'branch', '--show-current');
   const develop = optionalGit('config', '--get', 'gitflow.branch.develop');
   const production = optionalGit('config', '--get', 'gitflow.branch.master');
-  const prefix = optionalGit('config', '--get', 'gitflow.prefix.feature') ?? 'chore/';
-  const nextBranch = branchName ?? `${prefix}tbs-kit-${selected.version}`;
+  // Without git-flow config, a repository with a develop branch still works git-flow style: use feature/.
+  const hasDevelopRef = () => ['refs/heads/develop', 'refs/remotes/origin/develop']
+    .some(ref => optionalGit('show-ref', '--verify', '--quiet', ref) !== undefined);
+  const branchFor = () => branchName ??
+    `${optionalGit('config', '--get', 'gitflow.prefix.feature') ?? (develop || hasDevelopRef() ? 'feature/' : 'chore/')}tbs-kit-${selected.version}`;
+  let nextBranch = branchFor();
   if (!createBranch && ['', 'main', 'master', 'develop', develop, production].includes(branch)) {
     const hint = `node scripts/tbs/update.mjs --branch${flags.has('--codex-hook') ? ' --codex-hook' : ''}`;
     throw new Error(`Cannot update on ${branch || 'detached HEAD'}. Run: ${hint} (creates ${nextBranch})`);
@@ -211,6 +215,16 @@ function main(args) {
     if (optionalGit('show-ref', '--verify', '--quiet', baseRef) === undefined) {
       throw new Error(`Integration branch origin/${integration} was not found after fetching origin.`);
     }
+    // The branch starts from the fetched base, not this checkout: never update a base that already
+    // has this kit version or a newer one (that would be a downgrade).
+    const baseFile = spawnSync('git', ['show', `${baseRef}:scripts/tbs/VERSION`], { cwd: root, env, encoding: 'utf8' });
+    const baseVersion = baseFile.status === 0 ? baseFile.stdout.trim() : undefined;
+    if (baseVersion !== undefined && validVersion(baseVersion) && !newer(selected.version, baseVersion)) {
+      console.log(`origin/${integration} already has ${baseVersion} (newest installed: ${selected.version}); no update branch created.`);
+      return 0;
+    }
+    nextBranch = branchFor();
+    git(root, 'check-ref-format', '--branch', nextBranch);
     git(root, 'switch', '--no-overwrite-ignore', '--no-track', '-c', nextBranch, baseRef);
     installerArgs = checkTargets();
   }
