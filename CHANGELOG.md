@@ -14,6 +14,7 @@
 - Skill eval exits with status 2 and prints usage when `--case` has no ID or is followed by an option (#22).
 - Skill eval matches evidence against file basenames case-insensitively (#17).
 - The feature-map check fails with the fix hint when discovery finds no screens, instead of reporting that the map covers all 0 screens (#20).
+- Self-merge checks evals with `--check --fresh`, as `lanes.mjs` does: a record older than `maxAgeDays`, or one whose gate inputs changed, now blocks self-merge until the suite is rerun (#13).
 
 ## 1.7.2
 
