@@ -7,11 +7,37 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { main as evaluate, judged, loadCases, casesHash, skillHash, settingsHash } from './skill-eval.mjs';
 import { laneAllowance } from './lanes.mjs';
 import { run } from './self-merge.mjs';
-import { loadConfig, validateConfig } from './config.mjs';
+import { main as learn } from './learn.mjs';
+import { adoptionLevel, loadConfig, validateConfig } from './config.mjs';
 function temporary(fn) {
  const root = mkdtempSync(join(tmpdir(), 'tbs-issues-'));
  try { execFileSync('git', ['init', '-q', root]); execFileSync('git', ['config', 'user.name', 'Tester'], {cwd:root}); execFileSync('git', ['config', 'user.email', 'test@example.invalid'], {cwd:root}); fn(root); }
  finally { rmSync(root, {recursive:true, force:true}); }
+}
+for (const config of [{}, ...[null, 2.5, 0, 5, '4', true].map(level => ({ level }))]) {
+ test(`adoption defaults to level 1 for ${JSON.stringify(config)}`, () => {
+   if ('level' in config) assert.throws(() => validateConfig(config), /config.level/);
+   assert.equal(adoptionLevel(config), 1);
+ });
+}
+test('explicit adoption levels 1 through 4 are preserved', () => {
+ for (const level of [1, 2, 3, 4]) assert.equal(adoptionLevel(validateConfig({ level })), level);
+});
+test('self-merge refuses when adoption level is missing', () => {
+ const logs = [];
+ assert.equal(run(['1'], {
+   config: { selfMerge: { enabled: true } },
+   ghRun: () => assert.fail('must not call gh'),
+   log: line => logs.push(line),
+ }), 1);
+ assert.deepEqual(logs, ['REFUSED: not adopted (level 4)']);
+});
+for (const [name, main, argv] of [['skill-eval', evaluate, ['--check']], ['learn', learn, ['--due']]]) {
+ test(`${name} is not adopted when level is missing`, () => temporary(root => {
+   const logs = [];
+   assert.equal(main(argv, { root, config: {}, log: line => logs.push(line) }), 0);
+   assert.deepEqual(logs, ['not adopted (level 3)']);
+ }));
 }
 test('one loader rejects invalid preferred config; level guards precede agent and merge calls', () => temporary(root => {
  mkdirSync(join(root,'.agents')); mkdirSync(join(root,'.claude'));
@@ -56,6 +82,22 @@ test('judged evidence must name basename and a required concept',()=>{
  assert.equal(judged(answer('bad'),'bad',item).pass,false);
  assert.equal(judged(answer('auth.js permission missing'),'auth.js permission missing',item).pass,true);
 });
+for (const [description, term, passing, failing] of [
+ ['already does not satisfy read', 'read', 'AUTH.JS lacks READ access', ['auth.js already has access']],
+ ['read must be a whole word', 'read', 'auth.js lacks read access', ['auth.js reads incorrectly', 'auth.js lacks préread', 'auth.js lacks read_2', 'auth.js lacks read٢']],
+ ['off-by-one matches as a token', 'off-by-one', 'auth.js has an (off-by-one) error', ['auth.js has an off-by-ones error']],
+ ['/terms matches as a token', '/terms', 'auth.js fails at (/terms)', ['auth.js fails at /terms2']],
+ ['/terms matches inside a path', '/terms', 'auth.js fails at app/terms', ['auth.js fails at app/termsx']],
+ ['regex metacharacters are literal', 'a.b', 'auth.js fails at a.b', ['auth.js fails at axb', 'auth.js fails at a.b2']],
+]) {
+ test(description, () => {
+   const item = { file: 'src/auth.js', mustName: [term] };
+   const score = evidence => judged(JSON.stringify({ caught: true, evidence }), evidence, item).pass;
+   assert.equal(score(passing), true, passing);
+   for (const evidence of failing) assert.equal(score(evidence), false, evidence);
+ });
+}
+
 test('worktrees share hook skips, migrate legacy logs once and audit acknowledgement offline',()=>temporary(root=>{
  execFileSync('git',['commit','--allow-empty','-qm','initial'],{cwd:root});
  const tree=join(root,'linked');
@@ -83,16 +125,16 @@ function evalFixture(root, expect) {
  execFileSync('git', ['commit', '-qm', 'initial'], { cwd: root });
  const suite = { name: 'routine', base: 'HEAD', skills: ['skills/review'] };
  const item = { id: 'count', expect, rule: 'count stays one', mustName: ['COUNT', 'off-by-one'], file: 'src/x.ts' };
- if (expect === 'gate') item.gate = "printf 'src/x.ts incorrect\\n'; exit 1";
+ if (expect === 'gate') item.gate = "if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi";
  put('evals/routine/cases/count/case.json', JSON.stringify(item));
  put('evals/routine/cases/count/seed.patch', 'diff --git a/src/x.ts b/src/x.ts\n--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1 +1 @@\n-const count = 1;\n+const count = 2;\n');
- return { suite, config: { evals: { suites: [suite] } }, resultPath: join(root, 'evals/routine/result.json') };
+ return { suite, config: { level: 4, evals: { suites: [suite] } }, resultPath: join(root, 'evals/routine/result.json') };
 }
 
-test('check rejects records predating evidence rule 3', () => temporary(root => {
+test('check rejects records predating evidence rule 4', () => temporary(root => {
  const { suite, config, resultPath } = evalFixture(root, 'gate');
- for (const evidenceRule of [2, undefined]) {
-   const strict = evidenceRule === 2;
+ for (const evidenceRule of [3, 2, undefined]) {
+   const strict = evidenceRule !== undefined;
    const repeats = strict ? 2 : 1;
    const record = {
      evidenceRule, date: new Date().toISOString(), skillHash: skillHash(root, suite),
@@ -102,24 +144,85 @@ test('check rejects records predating evidence rule 3', () => temporary(root => 
    writeFileSync(resultPath, JSON.stringify(record));
    const lines = [];
    const status = evaluate(['--check'], { root, config, log: line => lines.push(line) });
-   assert.match(lines.join('\n'), /record predates evidence rule 3 \(quote-only matching\): run it again/);
+   assert.match(lines.join('\n'), /record predates evidence rule 4 \(whole-word mustName\): run it again/);
    assert.equal(status, 1);
+   assert.equal(lines.length, 1, lines.join('\n'));
  }
 }));
 
-test('new eval records use rule 3 and default to two repeats', () => temporary(root => {
+test('a gate that rewrites files on the clean base does not leak into the seeded run (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi; printf 'const count = 1; // formatted\\n' > src/x.ts; touch generated.txt";
+ writeFileSync(casePath, JSON.stringify(item));
+ assert.equal(evaluate(['routine'], { root, config, log: () => {} }), 0);
+ const result = JSON.parse(readFileSync(resultPath)).cases[0];
+ assert.equal(result.pass, true);
+ assert.deepEqual(result.baseExit, [0, 0]);
+ assert.deepEqual(result.seededExit, [1, 1]);
+}));
+
+test('ignored files the base run writes do not make the seeded run fail (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ writeFileSync(join(root, '.git/info/exclude'), 'cache.txt\n');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if [ -f cache.txt ]; then printf 'src/x.ts incorrect\\n'; exit 1; fi; touch cache.txt";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ const result = JSON.parse(readFileSync(resultPath)).cases[0];
+ assert.equal(result.pass, false);
+}));
+
+test('a nested git repo the base run creates does not stop the seeded run (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi; git init -q fixture";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ assert.equal(JSON.parse(readFileSync(resultPath)).cases[0].pass, true);
+}));
+
+test('both gate runs see the same branch (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "[ \"$(git rev-parse --abbrev-ref HEAD)\" != HEAD ] || exit 3; if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ assert.equal(JSON.parse(readFileSync(resultPath)).cases[0].pass, true);
+}));
+
+test('a commit the base run makes does not reach the seeded run (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if [ -f marker ]; then printf 'src/x.ts incorrect\\n'; exit 1; fi; touch marker; git add marker; git -c user.name=G -c user.email=g@example.invalid commit -qm marker";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ assert.equal(JSON.parse(readFileSync(resultPath)).cases[0].pass, false);
+}));
+
+test('new eval records use rule 4 and default to two repeats', () => temporary(root => {
  const { config, resultPath } = evalFixture(root, 'gate');
  assert.equal(evaluate(['routine'], { root, config, log: () => {} }), 0);
  const record = JSON.parse(readFileSync(resultPath));
- assert.equal(record.evidenceRule, 3);
+ assert.equal(record.evidenceRule, 4);
  assert.equal(record.cases[0].repeats, 2);
  assert.equal(evaluate(['--check'], { root, config, log: () => {} }), 0);
 }));
 
-function runReview(root, caught) {
+function runReview(root, caught, { mustName, log = () => {}, dryRun = false } = {}) {
  const { suite, config, resultPath } = evalFixture(root, 'review');
  Object.assign(suite, { reviewer: 'cursor-agent', judge: 'gemini', repeats: 1, reviewPrompt: 'Review {branch}' });
  const evidence = 'x.ts sets count to two.';
+ if (mustName) {
+   const casePath = join(root, 'evals/routine/cases/count/case.json');
+   const item = JSON.parse(readFileSync(casePath));
+   writeFileSync(casePath, JSON.stringify({ ...item, mustName }));
+ }
  const prompts = [];
  const run = (command, args, options) => {
    if (command === 'cursor-agent') return { status: 0, stdout: evidence };
@@ -129,17 +232,36 @@ function runReview(root, caught) {
    }
    return spawnSync(command, args, { ...options, encoding: 'utf8' });
  };
- const status = evaluate(['routine'], { root, config, run, log: () => {} });
+ const status = evaluate(dryRun ? ['routine', '--dry-run'] : ['routine'], { root, config, run, log });
+ if (dryRun) return { status, prompts };
  return { status, prompts, result: JSON.parse(readFileSync(resultPath)).cases[0] };
 }
 
-test('judge prompt asks for at least one term and a basename plus one term passes', () => temporary(root => {
+test('judge prompt asks the excerpt itself to state the fault and explains matching', () => temporary(root => {
  const { status, prompts, result } = runReview(root, true);
  assert.equal(status, 0, result.evidence);
  assert.equal(result.pass, true);
  assert.equal(prompts.length, 1);
- assert.match(prompts[0], /at least one of the mustName terms/);
+ assert.match(prompts[0], /excerpt itself must state the fault/);
+ assert.match(prompts[0], /basename.*case-insensitive substring/);
+ assert.match(prompts[0], /mustName.*case-insensitive whole word/);
 }));
+
+for (const dryRun of [false, true]) {
+ test(`short and common mustName terms warn during ${dryRun ? 'dry-run' : 'a run'}`, () => temporary(root => {
+   const lines = [];
+   const { status, result, prompts } = runReview(root, true, {
+     mustName: ['COUNT', 'ts', 'READ'], log: line => lines.push(line), dryRun,
+   });
+   assert.equal(status, 0, lines.join('\n'));
+   for (const term of ['ts', 'READ']) {
+     assert.ok(lines.some(line => line.includes('Warning') && line.includes('[routine]') &&
+       line.includes('count') && line.includes(JSON.stringify(term))), lines.join('\n'));
+   }
+   assert.equal(prompts.length, dryRun ? 0 : 1);
+   if (!dryRun) assert.equal(result.pass, true);
+ }));
+}
 
 test('failed review records a repo-relative path to the kept review', () => temporary(root => {
  const { status, prompts, result } = runReview(root, false);
@@ -170,7 +292,7 @@ test('owed lists local skips when GitHub search fails and lanes stay capped', ()
    if (args[0] === 'repo') return 'acme/project';
    throw new Error('GitHub unavailable');
  };
- const config = { autopilot: { maxLanes: 4 }, evals: { suites: [{ name: 'review', skills: [] }] } };
+ const config = { level: 4, autopilot: { maxLanes: 4 }, evals: { suites: [{ name: 'review', skills: [] }] } };
  assert.throws(() => run(['--owed'], { root, config, ghRun, log: x => output.push(x) }), /GitHub unavailable/);
  const allowance = laneAllowance({ root, config, ghRun, evalCheck: () => 0 });
  assert.equal(allowance.allowed, 1);

@@ -147,7 +147,7 @@ export function main(argv, { root = ROOT, config = loadConfig(root), log = conso
   const settings = config.featureMap;
   if (!settings?.sources?.length) throw new Error(EMPTY);
   const found = discover(root, settings.sources);
-  if (!found.size && (argv.includes("--list") || argv.includes("--init"))) throw new Error(EMPTY);
+  if (!found.size) throw new Error(EMPTY);
   const file = join(root, settings.file ?? "docs/feature-map.json");
   if (argv.includes("--list")) { for (const [id, where] of found) log(`${id}\t${where}`); return 0; }
   if (argv.includes("--init")) {

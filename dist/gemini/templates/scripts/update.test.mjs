@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { gateCommandFor } from './codex-hook.mjs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -146,22 +147,25 @@ test('guards main, master, develop, and detached HEAD with the exact branch fix'
   const { cache, git, run, untouched, addOrigin } = fixture(t);
   addOrigin();
   cache('1.10.0');
+  // Once a develop branch exists, the default prefix without git-flow config is feature/.
+  const developBranch = 'feature/tbs-kit-1.10.0';
   for (const branch of ['main', 'master', 'develop', 'HEAD']) {
     if (branch === 'HEAD') git('switch', '--detach');
     else if (branch !== 'main') git('switch', '-c', branch);
     const result = run();
     assert.equal(result.status, 1);
-    assert.ok(result.stderr.includes(`node scripts/tbs/update.mjs --branch (creates ${updateBranch})`), result.stderr);
+    const expected = ['develop', 'HEAD'].includes(branch) ? developBranch : updateBranch;
+    assert.ok(result.stderr.includes(`node scripts/tbs/update.mjs --branch (creates ${expected})`), result.stderr);
     untouched();
   }
   git('switch', 'main');
   git('tag', 'main');
-  assert.match(run().stderr, /update\.mjs --branch \(creates chore\/tbs-kit-1\.10\.0\)/);
+  assert.match(run().stderr, /update\.mjs --branch \(creates feature\/tbs-kit-1\.10\.0\)/);
   git('switch', '--detach');
   const head = git('rev-parse', 'HEAD');
   const result = run(['--branch']);
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(git('branch', '--show-current'), updateBranch);
+  assert.equal(git('branch', '--show-current'), developBranch);
   assert.equal(git('rev-parse', 'HEAD'), head);
 });
 
@@ -173,6 +177,9 @@ test('passes --codex-hook on request or when the existing Bash hook belongs to t
     ['echo unrelated', [], ['--update']],
     ['echo unrelated', ['--codex-hook'], ['--update', '--codex-hook']],
     ['python3 "/old kit/hooks/merge-gate.py"', [], ['--update', '--codex-hook']],
+    ['if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ]; then exec python3 "$f"; fi', [], ['--update']],
+    [gateCommandFor('a'.repeat(64)), [], ['--update', '--codex-hook']],
+    [gateCommandFor('c'.repeat(64)).replace('sys.exit(0)', 'sys.exit(1)'), [], ['--update']],
   ]) {
     put('.codex/hooks.json', JSON.stringify({ hooks: { PreToolUse: [{
       matcher: 'Bash', hooks: [{ type: 'command', command }],
@@ -183,6 +190,32 @@ test('passes --codex-hook on request or when the existing Bash hook belongs to t
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(installed().args, expected);
   }
+});
+
+// Needs the plugin tree around it (bin/tbs-init); a project's vendored scripts/tbs copy has none.
+const pluginRoot = new URL('../../', import.meta.url);
+test('update migrates a legacy Codex hook and refreshes the vendored gate', { skip: !existsSync(new URL('bin/tbs-init', pluginRoot)) && 'runs only inside the plugin tree' }, t => {
+  const { root, cache, put, git, commit, run } = fixture(t);
+  const source = cache('1.10.0');
+  cpSync(pluginRoot, source, { recursive: true });
+  writeFileSync(join(source, '.claude-plugin/plugin.json'), JSON.stringify({ version: '1.10.0' }));
+  const unrelated = { type: 'command', command: 'echo keep' };
+  put('.codex/hooks.json', JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [
+    unrelated, { type: 'command', command: 'python3 "/old kit/hooks/merge-gate.py"' },
+  ] }] } }));
+  const gate = 'scripts/tbs/merge-gate.py';
+  put(gate, '# stale\n');
+  put('.agents/trust-before-scale.json', JSON.stringify({ project: 'test', mergeGate: {} }));
+  git('switch', '-c', 'feature/example');
+  commit();
+  const result = run();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const commands = JSON.parse(readFileSync(join(root, '.codex/hooks.json'), 'utf8'))
+    .hooks.PreToolUse.flatMap(entry => entry.hooks.map(hook => hook.command));
+  assert.equal(commands.length, 2);
+  assert.equal(commands[0], unrelated.command);
+  assert.match(commands[1], /scripts\/tbs\/merge-gate\.py/);
+  assert.deepEqual(readFileSync(join(root, gate)), readFileSync(join(source, 'hooks/merge-gate.py')));
 });
 
 test('dry run shows the selection and branch action without changing files, refs or the index', t => {
@@ -196,7 +229,8 @@ test('dry run shows the selection and branch action without changing files, refs
   const result = run(['--branch', '--dry-run']);
   assert.equal(result.status, 0, result.stderr);
   assert.ok(result.stdout.includes(selected));
-  assert.ok(result.stdout.includes(`1.9.0 → 1.10.0; create ${updateBranch}`));
+  assert.ok(result.stdout.includes(`create ${updateBranch} (name provisional until the fetch)`), result.stdout);
+  assert.ok(result.stdout.includes('update it to 1.10.0 if its kit is older'), result.stdout);
   assert.doesNotMatch(result.stdout, /doctor ran/);
   untouched();
   assert.deepEqual(readFileSync(join(root, '.git/index')), index);
@@ -252,6 +286,89 @@ test('branches from freshly fetched git-flow integration with the configured pre
     assert.equal(git('branch', '--show-current'), override ?? 'feature/tbs-kit-1.10.0');
     assert.equal(git('rev-parse', 'HEAD'), expected);
   }
+});
+
+test('without git-flow config, --branch uses feature/ when origin has develop', t => {
+  const { cache, git, run, addOrigin } = fixture(t);
+  cache('1.10.0');
+  addOrigin();
+  git('push', '-q', 'origin', 'main:develop');
+  git('switch', '-c', 'work');
+  const result = run(['--branch']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(git('branch', '--show-current'), 'feature/tbs-kit-1.10.0');
+});
+
+test('--branch stops before branching when the fetched base already has the kit at or above the installed version', t => {
+  const { cache, git, put, commit, run, untouched, addOrigin } = fixture(t);
+  cache('1.10.0');
+  addOrigin();
+  put(versionPath, '1.11.0\n');
+  commit();
+  git('push', '-q', 'origin', 'main');
+  git('switch', '-q', '-c', 'work', 'HEAD~1');
+  const result = run(['--branch']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /origin\/main already has 1\.11\.0/);
+  assert.equal(git('branch', '--show-current'), 'work');
+  untouched();
+});
+
+test('--branch updates an older fetched base even when the starting checkout is already current', t => {
+  const { cache, git, put, commit, run, installed, addOrigin } = fixture(t);
+  cache('1.10.0');
+  addOrigin();
+  git('switch', '-q', '-c', 'work');
+  put(versionPath, '1.10.0\n');
+  commit();
+  const result = run(['--branch']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(git('branch', '--show-current'), updateBranch);
+  assert.deepEqual(installed().args, ['--update']);
+});
+
+test('--branch refuses a fetched base whose kit version is missing or malformed', t => {
+  for (const content of [null, 'not-a-version\n']) {
+    const { cache, git, put, commit, run, untouched, addOrigin, root } = fixture(t);
+    cache('1.10.0');
+    addOrigin();
+    if (content === null) git('rm', '-q', versionPath); else put(versionPath, content);
+    commit();
+    git('push', '-q', 'origin', 'main');
+    git('switch', '-q', '-c', 'work', 'HEAD~1');
+    const result = run(['--branch']);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stderr, /no valid scripts\/tbs\/VERSION/);
+    assert.equal(git('branch', '--show-current'), 'work');
+    untouched();
+  }
+});
+
+test('--branch reports a current base before checking installer targets', t => {
+  const { cache, git, put, commit, run, untouched, addOrigin } = fixture(t);
+  cache('1.10.0');
+  put(versionPath, '1.10.0\n');
+  commit();
+  addOrigin();
+  git('switch', '-q', '-c', 'work');
+  put('scripts/tbs/new.mjs', 'untracked installer target');
+  const result = run(['--branch']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /already has 1\.10\.0/);
+  untouched();
+});
+
+test('--branch runs from a checkout that predates the kit when the fetched base has an older kit', t => {
+  const { cache, git, commit, run, installed, addOrigin } = fixture(t);
+  cache('1.10.0');
+  addOrigin();
+  git('switch', '-q', '-c', 'work');
+  git('rm', '-q', versionPath);
+  commit();
+  const result = run(['--branch']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(git('branch', '--show-current'), updateBranch);
+  assert.deepEqual(installed().args, ['--update']);
 });
 
 test('refuses an update branch when origin is missing or cannot be fetched', t => {

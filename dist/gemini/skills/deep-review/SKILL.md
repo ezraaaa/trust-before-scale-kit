@@ -5,17 +5,15 @@ description: "Review a change against configured project rules, enforcers and re
 
 # Deep Review
 
-Read `.agents/trust-before-scale.json`, falling back to `.claude/trust-before-scale.json` only
-when the preferred file is absent. Read `routine.extension` if configured, the host instructions,
-and the planned base, range and changed surfaces. Missing configured inputs are gaps, never passes.
-Use `routine.passes` for the host's preferred capability, with this skill as the fallback;
-see `docs/harnesses.md` for host commands. Do not invent project rules or roles. In a blind eval where config is deliberately hidden, use
-the explicit routine inputs supplied by the review prompt and report any missing source files.
+Config: `.agents/trust-before-scale.json` (else `.claude/trust-before-scale.json`), `routine.extension`,
+the host instructions, and the planned base, range and changed surfaces. A missing configured input is a
+gap, never a pass. Prefer the host capability in `routine.passes` (commands in `docs/harnesses.md`); this
+skill is the fallback. Never invent project rules or roles. In a blind eval with config hidden, use the
+routine inputs the prompt supplies and report missing source files.
 
-Report the command or task brief, reviewed full head SHA, scope, findings with checked file:line
-citations and severity, explicit clean verdict or missing-review reason, and limitations.
-Distinguish introduced/worsened findings from pre-existing ones. Route through the routine;
-a report that contains no review is not a clean result. Do not merge.
+Report: the command or brief, the reviewed full head SHA, scope, findings (checked file:line, severity, introduced,
+worsened or pre-existing), a clean verdict or why no review happened, and limits. Route findings through
+the routine. A report with no review is not clean. Never merge.
 
 Read every `routine.ruleSources` entry: instruction files, ADRs, enforcer tables and recorded
 “do not change back” decisions. Inspect changed code and its callers against each applicable rule.

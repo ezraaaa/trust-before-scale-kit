@@ -4,21 +4,28 @@
 
 Run from the repository root before review and release. No test may be skipped.
 
-Run `node scripts/gates.mjs` (or the repo-local `run-gates` skill). It runs, in order:
+Run `node scripts/gates.mjs` (or the repo-local `run-gates` skill). It runs these gates at the same time
+and reports them in this order:
 
 1. Repository script tests, vendored script tests and plugin tests.
 2. The merge-gate smoke test and generated harness check.
 3. Strict marketplace validation and plugin directory validation.
 4. The private-name leak check.
 5. Three fresh temporary git installs: `generic --ci`, `acme-mobile`, and a copy of the
-   generic profile installed via `--profile-dir`; each runs doctor and all vendored tests.
+   generic profile installed via `--profile-dir`; each runs doctor and every vendored test except
+   `git-env.test.mjs`, which reruns the others and runs in the vendored-tests gate (owner decision
+   19 Nov 2026).
 
-Each gate prints PASS or FAIL with a retained log in a temporary
+Each gate prints PASS, FAIL or NOT RUN with a retained log in a temporary
 `tbs-gates-logs-*` directory. Logs record HEAD, commands, output and exit code; temporary
 install directories are removed even on failure. Changes in the working tree are tested too,
 so uncommitted results do not prove a committed head. Re-run after committing for release evidence.
 `--quick` skips the three installs for diagnosis only; it is not full verification.
-The runner never reads or copies `.leakcheck.local`; the leak-check subprocess reads it in place.
+The leak-check subprocess looks for `.leakcheck.local` in the current worktree first, then in the
+main checkout. The gate runs it with `--require`. If neither checkout has the file, the subprocess
+exits 78 and the runner reports NOT RUN and exits nonzero. Hosted CI omits `--require` and exits 0
+for the missing file. Local CI reports `private-names NOT RUN` in its summary when the same lookup
+finds no file, and the row does not fail the run. The gate runner itself never reads or copies `.leakcheck.local`.
 
 ## When Actions cannot run
 
@@ -54,6 +61,8 @@ The runner supports a strict subset of workflow YAML and fails on unsupported fi
 then run it. Codex's sandbox cannot write `.agents/`; there, use `--skip-agents-marketplace` and
 regenerate in a normal checkout before merging.
 
+`scripts/build-harness.mjs` also generates `scripts/tbs/` and `docs/trust-before-scale/brief-template.md`. Never edit them by hand.
+
 ## Private names
 
 Real project names belong only in the gitignored `.leakcheck.local` (one regex per line, a leading
@@ -80,7 +89,7 @@ branch so each release is one fast-forward commit on top of the last:
 `git clone --branch gemini --single-branch <origin-url> <dir>` (on the very first publish, `git init -b gemini`
 and `git remote add origin <origin-url>` instead), delete every tracked file there (`git rm -rq .`), export
 with `node scripts/build-harness.mjs --gemini-dir <export>` into a separate new directory, and copy the
-export's contents into `<dir>`. Before committing, run the source checkout's `scripts/leak-check.mjs`
+export's contents into `<dir>`. Before committing, run the source checkout's `scripts/leak-check.mjs` with `--require`
 from `<dir>`, using a private temporary copy of `.leakcheck.local` there (never stage it; remove it
 immediately after checking), and check the staged file list excludes it. Commit `gemini X.Y.Z`, then with
 the owner's go-ahead `git push origin HEAD:gemini`. Never force-push; if the push is rejected, stop for the
@@ -95,7 +104,7 @@ Put Codex worktrees under `~/Development/tools/tbs-kit-<lane>` (its sandbox only
 review, then commit and merge one lane at a time. Each brief lists the lane's allowed files with full
 paths, including any existing test files the lane may need to update.
 
-## State (18 Nov 2026)
+## State (19 Nov 2026)
 
 1.7.2 is released: tag `v1.7.2` on `main`, with the `gemini` branch published. This public repository
 starts from a fresh history at 1.5.0; earlier history stays private with the owner. Hosted CI runs and is
@@ -110,29 +119,23 @@ confirmed (`plugin_hooks` shows as removed); see `docs/harnesses.md`. Untested s
 Antigravity installs (none installed on the review machine). The kit workflows run on Node 24 action majors
 since 1.7.1.
 
-**Adoption.** The owner's five projects run 1.7.1 (four updated with `update.mjs --branch`, one new install at
-level 4 from the generic profile), each merged into its `develop`. Updating them to 1.7.2 makes their eval
-records stale (evidence rule 3): rerun every suite after the update. Projects update with
+**Adoption.** The owner's five projects run 1.7.2 on their `develop` branches (updated 18 Nov with
+`update.mjs --branch`). Each reran its `routine` suite under evidence rule 3; the records expire for
+`--check --fresh` on 25 Nov 2026, after which lanes cap until each suite is rerun. Projects update with
 `node scripts/tbs/update.mjs --branch` or the `update` skill; the update notice tells them when.
+- One project commits a Codex merge hook (`.codex/hooks.json`, absolute 1.7.2 plugin path). The owner
+  keeps it until #18 is fixed (decision 19 Nov). If that plugin folder is removed, every Codex shell command there
+  is denied until `update.mjs --branch --codex-hook` rewrites the path; the #18 fix must migrate this hook.
+- A project's own eval checks may assume one evidence string per case; kit records store one per repeat
+  (one project needed a one-line fix in its own eval check).
+- In an eval worktree, `linkDirs` link from that worktree's root: link `node_modules` in first, or gate cases fail.
 
-**Handoff for the next session (Codex or Claude).** Nothing is in flight: no open PRs, branches or worktrees.
-Next work, in order:
-1. Update the five projects to 1.7.2 and rerun their eval suites.
-2. The next patch in the Backlog below (owner deferred it; plan it first, then release as usual).
-3. A public demo project at level 2.
-4. A long-form explainer.
+**Handoff for the next session (Codex or Claude).** `HANDOFF.md` is the source of truth for what is in
+flight, the owner list and the next work; this section keeps only durable facts.
 
 ## Backlog
 
-- Expand gate fingerprinting to script dependencies and package-manager scripts. Resolving those
-  inputs would need command-specific logic. This release fingerprints the command and the main
-  script when it can resolve that file directly.
+- Expand gate fingerprinting to package-manager scripts such as `npm test`, commands such as `make`,
+  and dynamic imports with computed paths.
 - Update the optional project CI template separately. This release updates the kit's own
   workflows, so existing project workflow files retain their current runner requirements.
-- Next patch (1.7.3), owner deferred on 2026-11-18. Each item needs a test that fails first:
-  - `update.mjs --branch` compares versions on the starting checkout. Read `scripts/tbs/VERSION` from the fetched
-    base, and stop if the installed kit is not newer (this prevents a downgrade).
-  - Without `gitflow.*` config, `--branch` uses `chore/`. Decide a default the git-flow projects accept, or require
-    `--branch-name`.
-  - Gate fingerprint: `skill-eval --check --fresh` compares the seeded script with the unseeded checkout. A seed that
-    edits its own gate script reads stale right after passing. Fingerprint the same inputs on both paths.

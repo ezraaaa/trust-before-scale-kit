@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.7.3
+
+Links autopilot supervision to the adoption level, treats a missing `level` as level 1, and hardens skill evals, the self-merge check, the Codex hook and `update --branch`. Every project must rerun its eval suites after updating.
+
+- The private-name check falls back to the main checkout's pattern file in linked worktrees. A missing file now reports NOT RUN, fails the local gates, and appears in the local CI summary. Hosted CI still exits 0 when the file is missing.
+- Autopilot supervision lifts with the adoption level (owner decision 19 Nov 2026): level 1 is fully supervised, level 2 may merge docs and prose, level 3 may run on a schedule and merge code except gate code and governance, level 4 is the full loop. Gate code and governance stay the owner's at every level, level 4 included.
+- **Behaviour change for existing adopters:** a config with no `level`, or an invalid one, now counts as level 1 everywhere: `/autopilot` is fully supervised, `lanes.mjs` allows one lane, the self-merge lane is off, `skill-eval --check` and `learn` report "not adopted", and the merge-gate hook records no lessons. Installs from before levels existed that relied on level-4 behaviour must set `"level": 4`; `doctor.mjs` prints a note when `level` is missing. An invalid `level` still fails config validation.
+- `doctor.mjs` accepts a project that keeps its own feature map at any level (owner decision 19 Nov 2026), printing a note as `lanes.mjs` does; a configured `featureMap` is still checked. This replaces 1.7.x's rule that an explicit level of 2 or more requires `featureMap`.
+- Fewer tokens: shorter skill descriptions (loaded in every session), a shorter shared intro in the eight review-pass skills, `routine.mjs plan --json --host <host>` (only that host's commands, each row's reason once; output without `--host` is unchanged), and `skill-eval` stops a case's remaining repeats after its first failed repeat.
+- At adoption level 4, `learn` and `method` no longer wait on an absent owner: park what needs their answer or acceptance, with a recommendation, and work on what does not. Absence is never acceptance.
+
+### Fixed
+
+- Skill eval exits with status 2 and prints usage when `--case` has no ID or is followed by an option (#22).
+- Skill eval matches evidence against file basenames case-insensitively (#17).
+- The feature-map check fails with the fix hint when discovery finds no screens, instead of reporting that the map covers all 0 screens (#20).
+- Self-merge checks evals with `--check --fresh`, as `lanes.mjs` does: a record older than `maxAgeDays`, or one whose gate inputs changed, now blocks self-merge until the suite is rerun (#13).
+- Skill eval gate cases must pass on the clean base before the seeded failure counts, and record both exit codes (#21).
+- Skill eval fingerprints clean-base gate scripts, their relative dependencies and declared extra inputs, and `--check --fresh` fails on a changed or missing fingerprint; plain `--check` (CI) does not compare them (#14).
+- Skill eval judge excerpts must state the fault and match `mustName` terms as whole tokens (#16). Every project must rerun its eval suites after updating.
+- Codex project hooks use the vendored merge gate relative to the checkout root, pinned to its SHA-256, and allow commands with a note if the script is missing or changed (#18). Trust the hook again in Codex `/hooks` after updating.
+- `update.mjs --branch` reads `scripts/tbs/VERSION` from the fetched base and creates no branch when the base already has the installed kit version or newer (no downgrade). Without git-flow config it names the branch `feature/…` when a `develop` branch exists, else `chore/…`.
+
 ## 1.7.2
 
 Fixes the lane gate's owed-review check and aligns the eval judge with how evidence is matched.

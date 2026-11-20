@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { main } from './doctor.mjs';
+import { gateCommandFor } from './codex-hook.mjs';
 test('Codex hook warning is advisory and gives the installer command', () => {
   const root = mkdtempSync(join(tmpdir(), 'tbs-doctor-'));
   try {
@@ -21,24 +22,49 @@ test('Codex hook warning is advisory and gives the installer command', () => {
     }
     const hookFile = (script) => writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `python3 "${script}"` }] }] } }));
     hookFile('/moved kit/hooks/merge-gate.py');
-    assert.match(check()[0], /moved plugin/);
+    assert.match(check()[0], /gate script is missing/);
     mkdirSync(join(root, 'kit dir/hooks'), { recursive: true });
     writeFileSync(join(root, 'kit dir/hooks/merge-gate.py'), '');
     hookFile(join(root, 'kit dir/hooks/merge-gate.py'));
     assert.deepEqual(check(), []);
+    const emptyDigest = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    const lookalike = `if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ]; then exec python3 -I -c 'x' "$f" "${emptyDigest}" "note"; fi`;
+    const command = gateCommandFor(emptyDigest);
+    mkdirSync(join(root, 'scripts/tbs'), { recursive: true });
+    writeFileSync(join(root, 'scripts/tbs/merge-gate.py'), '');
+    writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: lookalike }] }] } }));
+    assert.match(check()[0], /--update --codex-hook/);
+    rmSync(join(root, 'scripts/tbs/merge-gate.py'));
+    writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command }] }] } }));
+    assert.match(check()[0], /--update --codex-hook/);
+    mkdirSync(join(root, 'scripts/tbs'), { recursive: true });
+    writeFileSync(join(root, 'scripts/tbs/merge-gate.py'), '');
+    assert.deepEqual(check(), []);
+    writeFileSync(join(root, 'scripts/tbs/merge-gate.py'), '# edited on a branch\n');
+    assert.match(check()[0], /missing or changed/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('a legacy config without level may keep its own feature map; an explicit level must configure one', () => {
+test('doctor reports the missing level and accepts a project-kept feature map at level 2', () => {
   const root = mkdtempSync(join(tmpdir(), 'tbs-doctor-map-'));
   try {
     const run = (config) => { const logs = []; const code = main([], { root, config: { project: 'test', mergeGate: {}, evals: { suites: [] }, ...config }, probe: () => '', log: line => logs.push(line) }); return { code, logs }; };
-    const legacy = run({});
-    assert.ok(legacy.logs.some(l => l.startsWith('NOTE feature map not configured in the kit')), legacy.logs.join('\n'));
-    assert.ok(!legacy.logs.some(l => /FAIL.*feature map configured/.test(l)), legacy.logs.join('\n'));
+    mkdirSync(join(root, '.claude'));
+    const configPath = join(root, '.claude', 'trust-before-scale.json');
+    writeFileSync(configPath, JSON.stringify({ project: 'test', mergeGate: {} }));
+    const logs = [];
+    const code = main([], { root, probe: () => '', log: line => logs.push(line) });
+    assert.ok(logs.includes(`NOTE level not set: treated as level 1 (scripts and autopilot). Set "level": <1-4> in ${configPath} to opt in to more.`), logs.join('\n'));
+    assert.ok(logs.includes('PASS config (level 1)'));
+    assert.equal(code, 0, logs.join('\n'));
+    assert.ok(!logs.some(l => /FAIL.*feature map configured/.test(l)), logs.join('\n'));
+    // Owner decision 19 Nov 2026: a project may keep its own feature map, as lanes.mjs accepts.
     const explicit = run({ level: 2 });
-    assert.equal(explicit.code, 1);
-    assert.ok(explicit.logs.some(l => /feature map configured/.test(l) && !l.startsWith('PASS')), explicit.logs.join('\n'));
+    assert.equal(explicit.code, 0, explicit.logs.join('\n'));
+    assert.ok(explicit.logs.includes("NOTE feature map not configured in the kit: not checked (the project may keep its own). To use the kit's: add featureMap.sources"), explicit.logs.join('\n'));
+    // A configured kit map is still checked.
+    const configured = run({ level: 2, featureMap: { file: 'docs/feature-map.json', sources: [{ dir: 'missing-src', ext: '.tsx', item: 'x', id: '{item}' }] } });
+    assert.equal(configured.code, 1, configured.logs.join('\n'));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

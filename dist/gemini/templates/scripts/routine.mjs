@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Plan only: never runs a review, executes configured commands, posts evidence or merges.
 import { execFileSync } from "node:child_process";
-import { ROOT, isMain, loadConfig, validateConfig } from "./config.mjs";
+import { REVIEW_RAN, ROOT, isMain, loadConfig, validateConfig } from "./config.mjs";
 
 export const ORDER = ["simplify", "correctness", "deep-review", "security", "user-roles", "edge-cases", "design-audit", "cross-review", "verify-walk"];
 export function plan(config, changes, { base, head, range } = {}) {
@@ -27,13 +27,19 @@ export function plan(config, changes, { base, head, range } = {}) {
 }
 
 export function main(argv = [], { root = ROOT, config, log = console.log } = {}) {
-  if (argv[0] !== "plan") throw new Error("Usage: routine.mjs plan [--base <ref>] [--json]");
-  let base;
+  if (argv[0] !== "plan") throw new Error("Usage: routine.mjs plan [--base <ref>] [--json [--host <claude|codex|cursor-agent|gemini>]]");
+  let base, host;
   for (let i = 1; i < argv.length; i++) {
     if (argv[i] === "--json") continue;
     if (argv[i] === "--base" && argv[i + 1] && !argv[i + 1].startsWith("-")) { base = argv[++i]; continue; }
+    if (argv[i] === "--host" && argv[i + 1] && !argv[i + 1].startsWith("-")) {
+      host = argv[++i];
+      if (!Object.hasOwn(REVIEW_RAN, host)) throw new Error(`Unknown host: ${host}`);
+      continue;
+    }
     throw new Error(`Unknown or incomplete option: ${argv[i]}`);
   }
+  if (host && !argv.includes("--json")) throw new Error("--host requires --json");
   config ??= loadConfig(root);
   base ??= `origin/${config.baseBranch ?? "develop"}`;
   const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], maxBuffer: 32 * 1024 * 1024 });
@@ -48,7 +54,15 @@ export function main(argv = [], { root = ROOT, config, log = console.log } = {})
   for (const path of git("ls-files", "--others", "--exclude-standard", "-z").split("\0").filter(Boolean)) changes.push({ status: "A", path });
   const result = plan(config, changes, { base, head, range: `${base}...HEAD` });
   result.dirty = !!git("status", "--porcelain", "--untracked-files=normal").trim();
-  if (argv.includes("--json")) log(JSON.stringify(result, null, 2));
+  if (host) {
+    const rows = result.rows.map(({ name, reason, files }) => ({ name, reason, files }));
+    const passes = result.passes.map(({ step, commands }) => ({
+      step,
+      rows: result.rows.filter(row => row.passes.includes(step)).map(row => row.name),
+      commands: { [host]: commands[host], fallback: commands.fallback },
+    }));
+    log(JSON.stringify({ ...result, rows, passes }));
+  } else if (argv.includes("--json")) log(JSON.stringify(result, null, 2));
   else {
     log(`HEAD=${head}\nRange: ${result.range}${result.dirty ? " + uncommitted changes (evidence must be refreshed on final head)" : ""}`);
     for (const row of result.rows) log(`Row ${row.name}: ${row.reason} [${row.files.join(", ")}]`);
