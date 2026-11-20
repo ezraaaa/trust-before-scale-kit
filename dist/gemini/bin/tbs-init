@@ -44,6 +44,7 @@ let codexHooks;
 const codexTarget = ".codex/hooks.json";
 const gateTarget = "scripts/tbs/merge-gate.py";
 const gateLookup = `f="$(git rev-parse --show-toplevel 2>/dev/null)/${gateTarget}"`;
+const gateCommand = `if ${gateLookup} && [ -f "$f" ]; then exec python3 "$f"; fi; echo "trust-before-scale: merge gate not found at ${gateTarget}; command not checked" >&2`;
 if (!listTargets && args.includes("--codex-hook")) {
   const codexPath = join(root, codexTarget);
   try {
@@ -54,16 +55,17 @@ if (!listTargets && args.includes("--codex-hook")) {
     for (const [event, entries] of Object.entries(codexHooks.hooks)) {
       if (!Array.isArray(entries) || entries.some(entry => !object(entry) || !Array.isArray(entry.hooks))) throw new Error(`invalid ${event} hook entries`);
       codexHooks.hooks[event] = entries.flatMap(entry => {
+        // Only the kit's own Bash pre-hook: an old absolute command, or exactly the generated one.
+        const kit = event === "PreToolUse" && entry.matcher === "Bash";
         const hooks = entry.hooks.filter(hook => {
           const command = hook.command ?? "";
-          return hook.type !== "command" || !(/^python3\s+["']?(?:[A-Za-z]:)?[\\/].*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(command) ||
-            /^if f="\$\(git rev-parse --show-toplevel 2>\/dev\/null\)\/scripts\/tbs\/merge-gate\.py" && /.test(command));
+          return !kit || hook.type !== "command" || !(/^python3\s+["']?(?:[A-Za-z]:)?[\\/].*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(command) ||
+            command === gateCommand);
         });
         return hooks.length || entry.hooks.length === 0 ? [{ ...entry, hooks }] : [];
       });
     }
-    const command = `if ${gateLookup} && [ -f "$f" ]; then exec python3 "$f"; fi; echo "trust-before-scale: merge gate not found at ${gateTarget}; command not checked" >&2`;
-    (codexHooks.hooks.PreToolUse ??= []).push({ matcher: "Bash", hooks: [{ type: "command", command, timeout: 10 }] });
+    (codexHooks.hooks.PreToolUse ??= []).push({ matcher: "Bash", hooks: [{ type: "command", command: gateCommand, timeout: 10 }] });
   } catch (error) {
     console.error(`Cannot update .codex/hooks.json: ${error.message}`); process.exit(1);
   }

@@ -29,10 +29,11 @@ test('a fresh build generates the vendored scripts and brief and passes --check'
   const { cwd, run } = fixture(t);
   const scripts = readdirSync(join(root, plugin, 'templates/scripts'))
     .filter(name => name.endsWith('.mjs') && !name.endsWith('.test.mjs'));
-  assert.deepEqual(readdirSync(join(cwd, vendor)).sort(), [...scripts, 'VERSION', 'config.schema.json'].sort());
+  assert.deepEqual(readdirSync(join(cwd, vendor)).sort(), [...scripts, 'VERSION', 'config.schema.json', 'merge-gate.py'].sort());
   for (const [output, input] of [
     ...scripts.map(name => [`${vendor}/${name}`, `templates/scripts/${name}`]),
     [`${vendor}/config.schema.json`, 'schema/config.schema.json'],
+    [`${vendor}/merge-gate.py`, 'hooks/merge-gate.py'],
     [brief, 'templates/docs/brief-template.md'],
   ]) {
     assert.deepEqual(readFileSync(join(cwd, output)), readFileSync(join(root, plugin, input)));

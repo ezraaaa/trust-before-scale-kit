@@ -49,6 +49,17 @@ test('preserves unrelated hooks and metadata; replaces all old kit entries on up
   assert.match(hooks.hooks.PreToolUse[2].hooks[0].command, /scripts\/tbs\/merge-gate\.py/);
   install(root, ['--update', '--codex-hook']); assert.deepEqual(read(root), hooks);
 }));
+test('preserves custom hooks that reuse the gate lookup, and kit-like commands outside PreToolUse Bash', () => fixture(root => {
+  const lookup = 'if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && ';
+  const custom = { matcher: 'Bash', hooks: [{ type: 'command', command: lookup + '[ -f "$f" ]; then echo logged; fi' }] };
+  const elsewhere = { matcher: 'Edit', hooks: [{ type: 'command', command: 'python3 "/old kit/hooks/merge-gate.py"' }] };
+  mkdirSync(join(root, '.codex'));
+  writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [custom, elsewhere] } }));
+  install(root);
+  const entries = read(root).hooks.PreToolUse;
+  assert.deepEqual(entries.slice(0, 2), [custom, elsewhere]);
+  assert.equal(entries.length, 3);
+}));
 test('preserves unrelated commands that mention the old gate path', () => fixture(root => {
   const report = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo "/old kit/hooks/merge-gate.py"' }] };
   mkdirSync(join(root, '.codex'));

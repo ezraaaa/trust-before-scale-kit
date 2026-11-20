@@ -186,10 +186,12 @@ test('passes --codex-hook on request or when the existing Bash hook belongs to t
   }
 });
 
-test('update migrates a legacy Codex hook and refreshes the vendored gate', t => {
+// Needs the plugin tree around it (bin/tbs-init); a project's vendored scripts/tbs copy has none.
+const pluginRoot = new URL('../../', import.meta.url);
+test('update migrates a legacy Codex hook and refreshes the vendored gate', { skip: !existsSync(new URL('bin/tbs-init', pluginRoot)) && 'runs only inside the plugin tree' }, t => {
   const { root, cache, put, git, commit, run } = fixture(t);
   const source = cache('1.10.0');
-  cpSync(new URL('../../', import.meta.url), source, { recursive: true });
+  cpSync(pluginRoot, source, { recursive: true });
   writeFileSync(join(source, '.claude-plugin/plugin.json'), JSON.stringify({ version: '1.10.0' }));
   const unrelated = { type: 'command', command: 'echo keep' };
   put('.codex/hooks.json', JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [
