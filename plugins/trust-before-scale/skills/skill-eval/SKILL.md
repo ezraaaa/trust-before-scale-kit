@@ -19,6 +19,7 @@ description: "Run, read or extend the evals proving review skills still catch re
   planted, fixture. Unchanged context is excluded; identifiers such as `testCount` are allowed. `expect` is
   `gate` when a command already catches it (name the command), else `review` with `rule`, `file` and `mustName` tokens. The evidence must quote the review
   and contain the file basename and at least one `mustName` token. Both match as literal, case-insensitive substrings.
+  A gate must pass on the clean base before its failure on the seed can count.
 - **A seed that no longer applies** is rewritten against the current code. Never delete a case to make a suite green.
 - A failing case is a finding about the skill: fix the skill, rerun, and commit the new record with the skill change.
 - **Dry run:** `<suite> --dry-run` prints the effective judge and checks each patch with `git apply --check`
