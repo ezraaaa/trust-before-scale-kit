@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.7.3
+
+Links autopilot supervision to the adoption level, treats a missing `level` as level 1, and hardens skill evals, the self-merge check, the Codex hook and `update --branch`. Every project must rerun its eval suites after updating.
 
 - The private-name check falls back to the main checkout's pattern file in linked worktrees. A missing file now reports NOT RUN, fails the local gates, and appears in the local CI summary. Hosted CI still exits 0 when the file is missing.
 - Autopilot supervision lifts with the adoption level (owner decision 19 Nov 2026): level 1 is fully supervised, level 2 may merge docs and prose, level 3 may run on a schedule and merge code except gate code and governance, level 4 is the full loop. Gate code and governance stay the owner's at every level, level 4 included.
