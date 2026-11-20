@@ -361,6 +361,13 @@ test("feature discovery refuses an empty or missing source with the fix hint", (
     const config = { level: 4, featureMap: { sources: [{ dir, ext: ".tsx", item: "path: '([^']+)'" }] } };
     for (const argv of [["--list"], ["--init"]]) assert.throws(() => mapMain(argv, { root, config, log: () => {} }), hint);
   }
+  // #20: check mode with an existing, empty map must not report "covers all 0 screens"
+  mkdirSync(join(root, "src"), { recursive: true });
+  put("src/routes.tsx", "route('/home')");
+  put("docs/feature-map.json", JSON.stringify({ screens: [], notMappedYet: [] }));
+  const unmatched = { level: 4, featureMap: { sources: [{ dir: "src", ext: ".tsx", item: "path: '([^']+)'" }] } };
+  assert.throws(() => mapMain([], { root, config: unmatched, log: () => {} }), hint);
+  rmSync(join(root, "docs"), { recursive: true });
   put("src/routes.tsx", "path: '/home'");
   const config = { level: 4, featureMap: { sources: [{ dir: "src", ext: ".tsx", item: "path: '([^']+)'" }] } };
   assert.equal(mapMain(["--list"], { root, config, log: () => {} }), 0);
