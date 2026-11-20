@@ -25,7 +25,8 @@ description: "Run, read or extend the evals proving review skills still catch re
   and a gate must leave no state there (tags, branches, config, caches).
   The fingerprint captures the gate command, its entry script and transitive literal relative imports before the
   clean gate runs. List additional inputs in the case's optional `gateInputs` array, for example
-  `["scripts/lib/**", "package.json"]`. Use repository-relative Git glob patterns without `..`; only tracked files count.
+  `["scripts/lib/**", "package.json"]`. Use repository-relative Git glob patterns without `..`; only tracked files count. Import scanning is pattern-based,
+  not a parser: list in `gateInputs` anything a gate loads in an unusual way.
 - **A seed that no longer applies** is rewritten against the current code. Never delete a case to make a suite green.
 - A failing case is a finding about the skill: fix the skill, rerun, and commit the new record with the skill change.
 - **Dry run:** `<suite> --dry-run` prints the effective judge and checks each patch with `git apply --check`

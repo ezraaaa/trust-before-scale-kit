@@ -147,7 +147,7 @@ function relativeModules(data) {
   return Array.from(data.toString("utf8").matchAll(relativeImport), match => match[1] ?? match[2]);
 }
 
-function gateInput(root, item) {
+function gateInput(root, item, suiteName) {
   root = realpathSync(root);
   const files = new Map();
   // Resolve straightforward script invocations without interpreting shell syntax or PATH.
@@ -168,10 +168,15 @@ function gateInput(root, item) {
     for (const specifier of relativeModules(data)) {
       // ESM resolves "./lib.mjs?mode=ci" to lib.mjs; hash every existing candidate, since ESM and
       // CommonJS pick different ones (over-including only makes a record stale sooner).
-      const literal = resolve(dirname(real), specifier.replace(/[?#].*$/s, ""));
-      const candidates = [literal, ...moduleExtensions.map(ext => literal + ext),
-        ...moduleExtensions.map(ext => join(literal, "index" + ext))];
-      pending.push(...candidates.filter(candidate => gateFile(root, candidate)));
+      const stripped = specifier.replace(/[?#].*$/s, "");
+      let decoded = stripped;
+      try { decoded = decodeURIComponent(stripped); } catch {}
+      for (const form of new Set([specifier, stripped, decoded])) {
+        const literal = resolve(dirname(real), form);
+        const candidates = [literal, ...moduleExtensions.map(ext => literal + ext),
+          ...moduleExtensions.map(ext => join(literal, "index" + ext))];
+        pending.push(...candidates.filter(candidate => gateFile(root, candidate)));
+      }
     }
   }
   if (item.gateInputs?.length) {
@@ -181,8 +186,8 @@ function gateInput(root, item) {
     const patterns = item.gateInputs.map(pattern => `:(top,glob)${pattern}`);
     const paths = must(sh("git", ["ls-files", "-z", "--cached", "--", ...patterns], { cwd: root }), "list gate inputs");
     for (const path of paths.split("\0").filter(Boolean)) {
-      // A suite's own record changes on every run; hashing it would make each new record stale.
-      if (files.has(path) || /^evals\/[^/]+\/result\.json$/.test(path)) continue;
+      // The suite's own record changes on every run; hashing it would make each new record stale.
+      if (files.has(path) || path === `evals/${suiteName}/result.json`) continue;
       const real = gateFile(root, resolve(root, path));
       if (real) files.set(path, readFileSync(real));
     }
@@ -351,7 +356,7 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
       let clean;
       try {
         linkDirectories(root, baseTree, suite.linkDirs ?? []);
-        input = gateInput(baseTree, item);
+        input = gateInput(baseTree, item, suite.name);
         clean = run("sh", ["-c", item.gate], { cwd: baseTree });
       } finally {
         // Targeted cleanup only; never prune other worktrees.
@@ -468,7 +473,7 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
       if (record && record.gateFingerprint === undefined && cases.some(item => item.expect === "gate")) {
         problems.push("record has no gate fingerprint: run it again");
       } else if (record?.gateFingerprint !== undefined &&
-          record.gateFingerprint !== gateFingerprint(cases, item => gateInput(root, item))) {
+          record.gateFingerprint !== gateFingerprint(cases, item => gateInput(root, item, suite.name))) {
         problems.push("the gate inputs changed since the last eval: run it again");
       }
       for (const problem of problems) log(`[${suite.name}] ${problem}  (node scripts/tbs/skill-eval.mjs ${suite.name})`);
@@ -518,7 +523,7 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
       if (item.expect === "gate") {
         const inputs = new Set(runs.filter(result => result.gateInput !== undefined).map(result => result.gateInput));
         if (inputs.size > 1) throw new Error(`${item.id}: gate inputs changed between runs`);
-        gateInputs.set(item.id, inputs.values().next().value ?? gateInput(root, item));
+        gateInputs.set(item.id, inputs.values().next().value ?? gateInput(root, item, suite.name));
       }
       const passes = runs.filter((result) => result.pass).length;
       const recorded = (key) => repeats === 1 ? runs[0][key] : runs.map((result) => result[key]);

@@ -1036,13 +1036,14 @@ test("plain eval checks detect imported gate script changes", () => inRepo((repo
 
 test("fingerprint follows imports with a query and hashes every fallback candidate", () => inRepo((repo) => {
   const { check, output } = fingerprintFixture(repo, {
-    [gateScript]: 'import "./lib.mjs?mode=ci";\n' + countGate + '// require("./dep")\n',
+    [gateScript]: 'import "./lib.mjs?mode=ci";\nimport "./gate%20rules.mjs";\n' + countGate + '// require("./dep")\n',
     "scripts/lib.mjs": "export {};\n",
+    "scripts/gate rules.mjs": "export {};\n",
     "scripts/dep.mjs": "export {};\n",
     "scripts/dep.js": "module.exports = {};\n",
   });
   assert.equal(check(), 0, output.join("\n"));
-  for (const [path, data] of [["scripts/lib.mjs", "export const x = 1;\n"], ["scripts/dep.js", "module.exports = { x: 1 };\n"]]) {
+  for (const [path, data] of [["scripts/lib.mjs", "export const x = 1;\n"], ["scripts/dep.js", "module.exports = { x: 1 };\n"], ["scripts/gate rules.mjs", "export const y = 1;\n"]]) {
     const before = readFileSync(join(repo.root, path), "utf8");
     repo.put(path, data);
     assert.equal(check(), 1, path);
@@ -1051,10 +1052,12 @@ test("fingerprint follows imports with a query and hashes every fallback candida
   }
 }));
 
-test("gateInputs never hash the suite's own result file", () => inRepo((repo) => {
-  const { check, output } = fingerprintFixture(repo, { [gateScript]: countGate, "evals/routine/result.json": "{}" },
-    { gateInputs: ["evals/**"] });
+test("gateInputs never hash the suite's own result file, but do hash another suite's", () => inRepo((repo) => {
+  const { check, output } = fingerprintFixture(repo, { [gateScript]: countGate, "evals/routine/result.json": "{}",
+    "evals/other/result.json": "{}" }, { gateInputs: ["evals/**"] });
   assert.equal(check(), 0, output.join("\n"));
+  repo.put("evals/other/result.json", '{"changed":true}');
+  assert.equal(check(), 1);
 }));
 
 test("plain and fresh eval checks detect entry script changes", () => inRepo((repo) => {
