@@ -1014,22 +1014,28 @@ function fingerprintFixture({ root, git, put }, files, item = {}, patch = seed, 
   const output = [];
   const options = { root, config: { level: 4, evals: { suites: [{ ...suite, repeats: 1, ...suiteOptions }] } },
     log: line => output.push(line) };
+  // Fingerprints are compared under --fresh only; plain() checks what project CI runs.
   const check = (...args) => {
     output.length = 0;
-    return evalMain(["--check", ...args], options);
+    return evalMain(["--check", "--fresh", ...args.filter(arg => arg !== "--fresh")], options);
+  };
+  const plain = () => {
+    output.length = 0;
+    return evalMain(["--check"], options);
   };
   assert.equal(evalMain(["routine"], options), 0, output.join("\n"));
   const path = "evals/routine/result.json";
-  return { check, output, path, record: JSON.parse(readFileSync(join(root, path), "utf8")) };
+  return { check, plain, output, path, record: JSON.parse(readFileSync(join(root, path), "utf8")) };
 }
 
-test("plain eval checks detect imported gate script changes", () => inRepo((repo) => {
-  const { check, output } = fingerprintFixture(repo, {
+test("fresh eval checks detect imported gate script changes; plain checks (CI) do not compare", () => inRepo((repo) => {
+  const { check, plain, output } = fingerprintFixture(repo, {
     [gateScript]: 'import "./lib.mjs";\n',
     "scripts/lib.mjs": countGate,
   });
   assert.equal(check(), 0);
   repo.put("scripts/lib.mjs", countGate + "// changed\n");
+  assert.equal(plain(), 0, output.join("\n"));
   assert.equal(check(), 1);
   assert.match(output.join("\n"), /gate inputs changed/);
 }));
@@ -1089,7 +1095,7 @@ test("fingerprint follows require('.') and tracked symlinked directories", () =>
   }
 }));
 
-test("plain and fresh eval checks detect entry script changes", () => inRepo((repo) => {
+test("fresh eval checks detect entry script changes", () => inRepo((repo) => {
   repo.put("linked/expected.txt", "const count = 1;\n");
   const { check, output, record } = fingerprintFixture(repo, {
     [gateScript]: `import { execFileSync } from "node:child_process";
@@ -1127,7 +1133,7 @@ test("eval fingerprint uses the clean base when the seed edits its own gate", ()
   assert.equal(check("--fresh"), 0, output.join("\n"));
 }));
 
-test("plain eval checks detect changes to files matched by gateInputs", () => inRepo((repo) => {
+test("fresh eval checks detect changes to files matched by gateInputs", () => inRepo((repo) => {
   const path = "scripts/lib/nested/expected.txt";
   const { check, output } = fingerprintFixture(repo, {
     [gateScript]: countGate,
@@ -1141,10 +1147,11 @@ test("plain eval checks detect changes to files matched by gateInputs", () => in
   assert.match(output.join("\n"), /gate inputs changed/);
 }));
 
-test("plain eval checks reject a missing gate fingerprint", () => inRepo((repo) => {
-  const { check, output, path, record } = fingerprintFixture(repo, { [gateScript]: countGate });
+test("fresh eval checks reject a missing gate fingerprint", () => inRepo((repo) => {
+  const { check, plain, output, path, record } = fingerprintFixture(repo, { [gateScript]: countGate });
   delete record.gateFingerprint;
   repo.put(path, JSON.stringify(record));
+  assert.equal(plain(), 0);
   assert.equal(check(), 1);
   assert.match(output.join("\n"), /record has no gate fingerprint: run it again/);
 }));

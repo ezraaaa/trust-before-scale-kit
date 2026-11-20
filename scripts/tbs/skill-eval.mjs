@@ -11,7 +11,7 @@
 //   node scripts/tbs/skill-eval.mjs <suite> --case <id>  run one case, print only
 //   node scripts/tbs/skill-eval.mjs <suite> --dry-run    print the plan
 //   node scripts/tbs/skill-eval.mjs --check [--fresh]    fail if any suite's record is missing, stale or red
-//                                                         (--fresh also fails a record older than maxAgeDays)
+//                                                         (--fresh also fails a record older than maxAgeDays or with changed gate inputs)
 import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
@@ -474,9 +474,11 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
       if (record && record.evidenceRule !== EVIDENCE_RULE) {
         problems.unshift("record predates evidence rule 3 (quote-only matching): run it again");
       }
-      if (record && record.gateFingerprint === undefined && cases.some(item => item.expect === "gate")) {
+      // Only --fresh (lanes, self-merge) compares gate fingerprints. Plain --check runs in project CI
+      // on PRs, where a PR that changes a gate cannot refresh its record until the change is on the base.
+      if (fresh && record && record.gateFingerprint === undefined && cases.some(item => item.expect === "gate")) {
         problems.push("record has no gate fingerprint: run it again");
-      } else if (record?.gateFingerprint !== undefined &&
+      } else if (fresh && record?.gateFingerprint !== undefined &&
           record.gateFingerprint !== gateFingerprint(cases, item => gateInput(root, item, suite.name))) {
         problems.push("the gate inputs changed since the last eval: run it again");
       }

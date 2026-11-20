@@ -12,8 +12,9 @@ description: "Run, read or extend the evals proving review skills still catch re
   A missing ID or a value starting with `-` prints usage and exits with status 2.
 - **Check:** `--check` fails when a skill changed, a case failed, the record is missing, its `evidenceRule` differs from 3, or its `settingsHash`
   is missing or differs from the effective review prompt/model, judge (including `TBS_JUDGE_MODEL`), repeats,
-  base or link directories. Suites with gate cases need a gate fingerprint that matches the current checkout.
-  `--check --fresh` also fails a record older than `maxAgeDays`.
+  base or link directories. `--check --fresh` (lanes, self-merge) also fails a record older than `maxAgeDays`, and,
+  for suites with gate cases, one whose gate fingerprint is missing or no longer matches the checkout. Plain `--check`
+  (CI) does not compare fingerprints: a PR that changes a gate cannot refresh its record until the change is merged.
 - **Add a case** after any miss: `evals/<suite>/cases/<id>/case.json` and `seed.patch`, a real diff against the
   current base that a person could plausibly ship. Neither the added lines, the branch name nor the message may say
   any whole word (case-insensitive) from: eval, seed, test, judge, rubric, score, candidate, benchmark,
