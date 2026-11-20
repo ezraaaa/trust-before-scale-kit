@@ -171,6 +171,31 @@ function putCase(put, patch = seed, value = caseValue) {
   put("evals/routine/cases/count/seed.patch", patch);
 }
 
+for (const args of [["--case"], ["--case", "--x"]]) {
+  test(`skill-eval rejects ${args.join(" ")} without a case ID`, () => inRepo(({ root, put }) => {
+    putCase(put);
+    const config = { level: 4, evals: { suites: [suite] } };
+    put(".claude/trust-before-scale.json", JSON.stringify(config));
+    for (const file of ["skill-eval.mjs", "config.mjs"]) {
+      put(`scripts/tbs/${file}`, readFileSync(new URL(file, import.meta.url)));
+    }
+    const bundledSchema = new URL("./config.schema.json", import.meta.url);
+    const schema = existsSync(bundledSchema) ? bundledSchema : new URL("../../schema/config.schema.json", import.meta.url);
+    put("scripts/tbs/config.schema.json", readFileSync(schema));
+    const result = spawnSync(process.execPath, ["scripts/tbs/skill-eval.mjs", "routine", ...args], {
+      cwd: root, encoding: "utf8",
+    });
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stdout + result.stderr, /Usage:.*--case <id>/);
+    assert.equal(existsSync(join(root, "evals/routine/result.json")), false);
+  }));
+}
+
+test("skill-eval judge matches the basename case-insensitively", () => {
+  const evidence = "X.ts increments COUNT";
+  assert.equal(judged(JSON.stringify({ caught: true, evidence }), evidence, caseValue).pass, true);
+});
+
 test("required PR comments must each match and name this head in the same comment", () => {
   const requiredComments = [{ name: "Codex local", pattern: "^## Codex review \\(local\\)" }, { name: "routine", pattern: "^## Acme Flutter review \\(routine\\)" }];
   const cfg = { ...config, selfMerge: { ...lane, requiredComments } };

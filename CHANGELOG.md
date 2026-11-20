@@ -9,6 +9,11 @@
 - Fewer tokens: shorter skill descriptions (loaded in every session), a shorter shared intro in the eight review-pass skills, `routine.mjs plan --json --host <host>` (only that host's commands, each row's reason once; output without `--host` is unchanged), and `skill-eval` stops a case's remaining repeats after its first failed repeat.
 - At adoption level 4, `learn` and `method` no longer wait on an absent owner: park what needs their answer or acceptance, with a recommendation, and work on what does not. Absence is never acceptance.
 
+### Fixed
+
+- Skill eval exits with status 2 and prints usage when `--case` has no ID or is followed by an option (#22).
+- Skill eval matches evidence against file basenames case-insensitively (#17).
+
 ## 1.7.2
 
 Fixes the lane gate's owed-review check and aligns the eval judge with how evidence is matched.
