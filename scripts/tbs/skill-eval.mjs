@@ -306,7 +306,7 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
           : `the gate already fails on the clean base (exit ${exits.baseExit})`;
         return { id: item.id, expect: item.expect, pass: false, evidence, ...exits };
       }
-      must(run("git", ["worktree", "add", "-q", worktree, branch], { cwd: root }), "worktree add");
+      must(run("git", ["worktree", "add", "-q", "-B", branch, worktree, base], { cwd: root }), "worktree add");
       added = true;
     } else {
       const options = { cwd: root, env: { ...process.env, GIT_INDEX_FILE: join(scratch, "index"),

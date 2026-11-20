@@ -178,6 +178,16 @@ test('both gate runs see the same branch (#21)', () => temporary(root => {
  assert.equal(JSON.parse(readFileSync(resultPath)).cases[0].pass, true);
 }));
 
+test('a commit the base run makes does not reach the seeded run (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if [ -f marker ]; then printf 'src/x.ts incorrect\\n'; exit 1; fi; touch marker; git add marker; git -c user.name=G -c user.email=g@example.invalid commit -qm marker";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ assert.equal(JSON.parse(readFileSync(resultPath)).cases[0].pass, false);
+}));
+
 test('new eval records use rule 3 and default to two repeats', () => temporary(root => {
  const { config, resultPath } = evalFixture(root, 'gate');
  assert.equal(evaluate(['routine'], { root, config, log: () => {} }), 0);
