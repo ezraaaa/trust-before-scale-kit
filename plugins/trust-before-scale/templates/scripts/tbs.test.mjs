@@ -165,7 +165,7 @@ function inRepo(fn) {
 }
 const suite = { name: "routine", base: "HEAD", skills: [".claude/skills/routine"], reviewPrompt: "/routine {branch}" };
 const seed = "diff --git a/src/x.ts b/src/x.ts\n--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1 +1 @@\n-const count = 1;\n+const count = 2;\n";
-const caseValue = { id: "count", expect: "gate", rule: "count stays one", mustName: ["count"], file: "src/x.ts", gate: "printf 'src/x.ts incorrect\\n'; exit 1" };
+const caseValue = { id: "count", expect: "gate", rule: "count stays one", mustName: ["count"], file: "src/x.ts", gate: "if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi" };
 function putCase(put, patch = seed, value = caseValue) {
   put("evals/routine/cases/count/case.json", JSON.stringify(value));
   put("evals/routine/cases/count/seed.patch", patch);
@@ -271,18 +271,27 @@ test("all repeats must pass and old records count as one repeat", () => {
 
 test("suite stops a gate case at its first failed repeat and records passes/repeats", () => inRepo(({ root, put }) => {
   putCase(put);
-  let gates = 0;
+  let baseGates = 0;
+  let seededGates = 0;
   const runner = (command, args, options) => {
     if (command === "sh") {
-      assert.equal(readFileSync(join(options.cwd, "src/x.ts"), "utf8"), "const count = 2;\n");
+      const source = readFileSync(join(options.cwd, "src/x.ts"), "utf8");
       assert.equal(realpathSync(execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: options.cwd, encoding: "utf8" }).trim()), realpathSync(join(root, ".git")));
-      return { status: ++gates === 2 ? 0 : 1, stdout: "src/x.ts", stderr: "" };
+      if (source === "const count = 1;\n") {
+        baseGates++;
+        return { status: 0 };
+      }
+      assert.equal(source, "const count = 2;\n");
+      return { status: ++seededGates === 2 ? 0 : 1, stdout: "src/x.ts", stderr: "" };
     }
     return spawnSync(command, command === "git" ? ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args] : args, { encoding: "utf8", ...options });
   };
   assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [{ ...suite, repeats: 3 }] } }, run: runner, log: () => {} }), 1);
   const result = JSON.parse(readFileSync(join(root, "evals/routine/result.json"), "utf8")).cases[0];
-  assert.equal(gates, 2);
+  assert.equal(baseGates, 2);
+  assert.equal(seededGates, 2);
+  assert.deepEqual(result.baseExit, [0, 0]);
+  assert.deepEqual(result.seededExit, [1, 0]);
   assert.equal(result.passes, 1);
   assert.equal(result.repeats, 3);
   assert.equal(result.pass, false);
@@ -642,7 +651,7 @@ test("trailing slash hidden paths reject targets and suite overlaps", () => {
 test("failed gate worktree add removes the branch it created", () => inRepo(({ root, git }) => {
   const before = git("branch", "--list");
   const runner = (command, args, options) => {
-    if (command === "git" && args[0] === "worktree" && args[1] === "add") {
+    if (command === "git" && args[0] === "worktree" && args[1] === "add" && args.includes("-b")) {
       git("branch", args[4], "HEAD");
       return { status: 1, stderr: "simulated worktree failure" };
     }
@@ -980,14 +989,34 @@ test("self-merge refuses an eval record older than maxAgeDays, like lanes (#13)"
   assert.match(output.join("\n"), /eval: .*older than 7 days/);
 }));
 
+test("a gate that already fails on the clean base does not catch the seed", () => inRepo(({ root, put }) => {
+  putCase(put, seed, { ...caseValue, gate: "printf 'src/x.ts incorrect\\n'; exit 3" });
+  const config = { level: 4, evals: { suites: [{ ...suite, repeats: 1 }] } };
+  assert.equal(evalMain(["routine"], { root, config, log: () => {} }), 1);
+  const { cases: [result] } = JSON.parse(readFileSync(join(root, "evals/routine/result.json"), "utf8"));
+  assert.equal(result.pass, false);
+  assert.equal(result.baseExit, 3);
+  assert.equal(result.seededExit, null);
+  assert.match(result.evidence, /already fails on the clean base.*3/);
+}));
+
 test("fresh eval checks detect script changes while old records still pass", () => inRepo(({ root, git, put }) => {
   const script = "scripts/gate.mjs";
-  put(script, "console.log('src/x.ts incorrect'); process.exitCode = 1;\n");
+  put("linked/expected.txt", "const count = 1;\n");
+  put(script, `import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+if (execFileSync("git", ["ls-files", "linked"], { encoding: "utf8" })) process.exit(2);
+const expected = readFileSync("linked/expected.txt", "utf8");
+if (readFileSync("src/x.ts", "utf8") !== expected) {
+  console.log("src/x.ts incorrect");
+  process.exitCode = 1;
+}
+`);
   git("add", script);
   git("-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", "commit", "-qm", "Gate script");
   putCase(put, seed, { ...caseValue, gate: `node "${script}"` });
   const output = [];
-  const options = { root, config: { level: 4, evals: { suites: [suite] } }, log: line => output.push(line),
+  const options = { root, config: { level: 4, evals: { suites: [{ ...suite, linkDirs: ["linked"], repeats: 1 }] } }, log: line => output.push(line),
     run: (command, args, opts) => spawnSync(command, command === "git" ? ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args] : args, { encoding: "utf8", ...opts }) };
   assert.equal(evalMain(["routine"], options), 0);
   assert.equal(evalMain(["--check", "--fresh"], options), 0);
@@ -997,6 +1026,9 @@ test("fresh eval checks detect script changes while old records still pass", () 
   assert.match(output.join("\n"), /gate inputs changed/);
   const path = "evals/routine/result.json";
   const record = JSON.parse(readFileSync(join(root, path), "utf8"));
+  assert.equal(record.cases[0].pass, true);
+  assert.equal(record.cases[0].baseExit, 0);
+  assert.equal(record.cases[0].seededExit, 1);
   delete record.gateFingerprint;
   put(path, JSON.stringify(record));
   assert.equal(evalMain(["--check", "--fresh"], options), 0);

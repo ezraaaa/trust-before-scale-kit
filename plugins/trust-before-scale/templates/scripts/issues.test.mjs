@@ -109,7 +109,7 @@ function evalFixture(root, expect) {
  execFileSync('git', ['commit', '-qm', 'initial'], { cwd: root });
  const suite = { name: 'routine', base: 'HEAD', skills: ['skills/review'] };
  const item = { id: 'count', expect, rule: 'count stays one', mustName: ['COUNT', 'off-by-one'], file: 'src/x.ts' };
- if (expect === 'gate') item.gate = "printf 'src/x.ts incorrect\\n'; exit 1";
+ if (expect === 'gate') item.gate = "if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi";
  put('evals/routine/cases/count/case.json', JSON.stringify(item));
  put('evals/routine/cases/count/seed.patch', 'diff --git a/src/x.ts b/src/x.ts\n--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1 +1 @@\n-const count = 1;\n+const count = 2;\n');
  return { suite, config: { level: 4, evals: { suites: [suite] } }, resultPath: join(root, 'evals/routine/result.json') };
@@ -131,6 +131,61 @@ test('check rejects records predating evidence rule 3', () => temporary(root => 
    assert.match(lines.join('\n'), /record predates evidence rule 3 \(quote-only matching\): run it again/);
    assert.equal(status, 1);
  }
+}));
+
+test('a gate that rewrites files on the clean base does not leak into the seeded run (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi; printf 'const count = 1; // formatted\\n' > src/x.ts; touch generated.txt";
+ writeFileSync(casePath, JSON.stringify(item));
+ assert.equal(evaluate(['routine'], { root, config, log: () => {} }), 0);
+ const result = JSON.parse(readFileSync(resultPath)).cases[0];
+ assert.equal(result.pass, true);
+ assert.deepEqual(result.baseExit, [0, 0]);
+ assert.deepEqual(result.seededExit, [1, 1]);
+}));
+
+test('ignored files the base run writes do not make the seeded run fail (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ writeFileSync(join(root, '.git/info/exclude'), 'cache.txt\n');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if [ -f cache.txt ]; then printf 'src/x.ts incorrect\\n'; exit 1; fi; touch cache.txt";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ const result = JSON.parse(readFileSync(resultPath)).cases[0];
+ assert.equal(result.pass, false);
+}));
+
+test('a nested git repo the base run creates does not stop the seeded run (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi; git init -q fixture";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ assert.equal(JSON.parse(readFileSync(resultPath)).cases[0].pass, true);
+}));
+
+test('both gate runs see the same branch (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "[ \"$(git rev-parse --abbrev-ref HEAD)\" != HEAD ] || exit 3; if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ assert.equal(JSON.parse(readFileSync(resultPath)).cases[0].pass, true);
+}));
+
+test('a commit the base run makes does not reach the seeded run (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if [ -f marker ]; then printf 'src/x.ts incorrect\\n'; exit 1; fi; touch marker; git add marker; git -c user.name=G -c user.email=g@example.invalid commit -qm marker";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ assert.equal(JSON.parse(readFileSync(resultPath)).cases[0].pass, false);
 }));
 
 test('new eval records use rule 3 and default to two repeats', () => temporary(root => {

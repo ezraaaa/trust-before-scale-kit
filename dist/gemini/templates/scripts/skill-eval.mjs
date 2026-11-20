@@ -261,11 +261,22 @@ function copyLinks(root, suite, scratch) {
   }
 }
 
+function linkDirectories(root, worktree, dirs) {
+  return dirs.filter(dir => existsSync(join(root, dir))).map(dir => {
+    mkdirSync(resolve(worktree, dir, ".."), { recursive: true });
+    const target = join(worktree, dir);
+    symlinkSync(join(root, dir), target, "dir");
+    return target;
+  });
+}
+
 export function runCase(root, base, suite, item, run = sh, baseBranch = "develop", runLinks) {
   const scratch = mkdtempSync(join(tmpdir(), "work-"));
   const worktree = join(scratch, "tree");
   const branch = `${item.branch ?? `feat/${item.id}`}-${randomBytes(4).toString("hex")}`;
   let added = false; let outcome;
+  const exits = item.expect === "gate" ? { baseExit: null, seededExit: null } : {};
+  const gateOptions = { cwd: worktree };
   try {
     const hidden = hiddenPaths(suite);
     if (item.expect === "review" && !runLinks) {
@@ -273,7 +284,29 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
       copyLinks(root, suite, runLinks);
     }
     if (item.expect === "gate") {
-      must(run("git", ["worktree", "add", "-q", "-b", branch, worktree, base], { cwd: root }), "worktree add");
+      // The clean run gets its own throwaway checkout, so nothing it writes (ignored files, nested
+      // repos, submodule state) reaches the seeded run. Only linkDirs are shared, by design.
+      // Both runs use the case branch, one checkout at a time, so only the seed differs.
+      const baseTree = join(scratch, "base");
+      must(run("git", ["worktree", "add", "-q", "-b", branch, baseTree, base], { cwd: root }), "base worktree add");
+      let clean;
+      try {
+        linkDirectories(root, baseTree, suite.linkDirs ?? []);
+        clean = run("sh", ["-c", item.gate], { cwd: baseTree });
+      } finally {
+        // Targeted cleanup only; never prune other worktrees.
+        run("git", ["worktree", "remove", "--force", baseTree], { cwd: root });
+        rmSync(baseTree, { recursive: true, force: true });
+        run("git", ["worktree", "remove", "--force", baseTree], { cwd: root });
+      }
+      exits.baseExit = clean.status ?? null;
+      if (clean.status !== 0 || clean.signal || clean.error) {
+        const evidence = exits.baseExit === null || clean.signal || clean.error
+          ? "the gate did not complete on the clean base"
+          : `the gate already fails on the clean base (exit ${exits.baseExit})`;
+        return { id: item.id, expect: item.expect, pass: false, evidence, ...exits };
+      }
+      must(run("git", ["worktree", "add", "-q", "-B", branch, worktree, base], { cwd: root }), "worktree add");
       added = true;
     } else {
       const options = { cwd: root, env: { ...process.env, GIT_INDEX_FILE: join(scratch, "index"),
@@ -301,13 +334,12 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
       GIT_COMMITTER_NAME: "Alex Morgan", GIT_COMMITTER_EMAIL: "alex@example.invalid" } }), "commit");
     // Gate links retain real-worktree behaviour; review links use the run's isolated copy.
     const linkRoot = item.expect === "gate" ? root : runLinks;
-    for (const dir of suite.linkDirs ?? []) if (existsSync(join(linkRoot, dir))) {
-      mkdirSync(resolve(worktree, dir, ".."), { recursive: true });
-      symlinkSync(join(linkRoot, dir), join(worktree, dir), "dir");
-    }
+    linkDirectories(linkRoot, worktree, suite.linkDirs ?? []);
     if (item.expect === "gate") {
       const input = gateInput(worktree, item.gate);
-      outcome = { ...gated(run("sh", ["-c", item.gate], { cwd: worktree }), item.file), gateInput: input };
+      const seeded = run("sh", ["-c", item.gate], gateOptions);
+      exits.seededExit = seeded.status ?? null;
+      outcome = { ...gated(seeded, item.file), gateInput: input };
     } else {
       // Review the skill as it is now, not as it was on the base branch.
       for (const path of suite.skills) { rmSync(join(worktree, path), { recursive: true, force: true }); cpSync(join(root, path), join(worktree, path), { recursive: true }); }
@@ -342,7 +374,7 @@ ${JSON.stringify({ rule: item.rule, file: item.file, mustName: item.mustName, re
     if (item.expect === "gate") run("git", ["branch", "-D", branch], { cwd: root });
     rmSync(scratch, { recursive: true, force: true });
   }
-  return { id: item.id, expect: item.expect, ...outcome };
+  return { id: item.id, expect: item.expect, ...outcome, ...exits };
 }
 
 export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, log = console.log } = {}) {
@@ -424,13 +456,15 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
         if (!result.pass) break;
       }
       if (item.expect === "gate") {
-        const inputs = new Set(runs.map(result => result.gateInput));
-        if (inputs.size !== 1) throw new Error(`${item.id}: gate inputs changed between runs`);
-        gateInputs.set(item.id, runs[0].gateInput ?? gateInput(root, item.gate));
+        const inputs = new Set(runs.filter(result => result.gateInput !== undefined).map(result => result.gateInput));
+        if (inputs.size > 1) throw new Error(`${item.id}: gate inputs changed between runs`);
+        gateInputs.set(item.id, inputs.values().next().value ?? gateInput(root, item.gate));
       }
       const passes = runs.filter((result) => result.pass).length;
+      const recorded = (key) => repeats === 1 ? runs[0][key] : runs.map((result) => result[key]);
       return { id: item.id, expect: item.expect, pass: passes === repeats, passes, repeats,
-        evidence: repeats === 1 ? runs[0].evidence : runs.map((result) => result.evidence) };
+        evidence: recorded("evidence"),
+        ...(item.expect === "gate" && { baseExit: recorded("baseExit"), seededExit: recorded("seededExit") }) };
     });
   } finally { rmSync(runLinks, { recursive: true, force: true }); }
   for (const result of results) log(JSON.stringify(result));
