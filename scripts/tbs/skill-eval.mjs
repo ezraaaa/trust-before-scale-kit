@@ -150,6 +150,9 @@ function relativeModules(data) {
 function gateInput(root, item, suiteName) {
   root = realpathSync(root);
   const files = new Map();
+  // Tracked files only, everywhere: the clean base worktree has nothing else, so an untracked
+  // fallback, a cache or a module under linkDirs in the checkout would make every record stale.
+  const tracked = new Set(must(sh("git", ["ls-files", "-z"], { cwd: root }), "list tracked files").split("\0").filter(Boolean));
   // Resolve straightforward script invocations without interpreting shell syntax or PATH.
   const script = /^(?:(?:node|bash|sh|python3?|ruby|perl)\s+)?(?:"([^"\n]+)"|'([^'\n]+)'|([\w./-]+))(?=\s|$)/.exec(item.gate.trim());
   const path = script?.slice(1).find(Boolean);
@@ -158,8 +161,8 @@ function gateInput(root, item, suiteName) {
   while (pending.length) {
     const file = pending.pop();
     const real = gateFile(root, file);
-    if (!real) continue;
-    const path = relative(root, file);
+    const path = relative(root, file).split(sep).join("/");
+    if (!real || !tracked.has(path)) continue;
     if (files.has(path)) continue;
     const data = readFileSync(real);
     files.set(path, data);
@@ -183,7 +186,7 @@ function gateInput(root, item, suiteName) {
     // Git's glob pathspecs provide *, ? and ** on both supported Node versions. Tracked files only:
     // untracked or ignored files exist in the checkout but never in the clean base, so they would
     // make every record read stale.
-    const patterns = item.gateInputs.map(pattern => `:(top,glob)${pattern}`);
+    const patterns = item.gateInputs.map(pattern => `:(top,glob)${pattern.replace(/^(?:\.\/)+/, "")}`);
     const paths = must(sh("git", ["ls-files", "-z", "--cached", "--", ...patterns], { cwd: root }), "list gate inputs");
     for (const path of paths.split("\0").filter(Boolean)) {
       // The suite's own record changes on every run; hashing it would make each new record stale.

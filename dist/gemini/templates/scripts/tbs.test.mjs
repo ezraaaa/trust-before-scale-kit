@@ -1060,6 +1060,18 @@ test("gateInputs never hash the suite's own result file, but do hash another sui
   assert.equal(check(), 1);
 }));
 
+test("fingerprint ignores untracked files and accepts ./ in gateInputs", () => inRepo((repo) => {
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: 'import "./lib.mjs";\n' + countGate,
+    "scripts/lib.mjs": "export {};\n",
+    "scripts/extra/data.txt": "first",
+  }, { gateInputs: ["./scripts/extra/**"] });
+  repo.put("scripts/lib.mjs.js", "untracked fallback\n");
+  assert.equal(check(), 0, output.join("\n"));
+  repo.put("scripts/extra/data.txt", "second");
+  assert.equal(check(), 1);
+}));
+
 test("plain and fresh eval checks detect entry script changes", () => inRepo((repo) => {
   repo.put("linked/expected.txt", "const count = 1;\n");
   const { check, output, record } = fingerprintFixture(repo, {
