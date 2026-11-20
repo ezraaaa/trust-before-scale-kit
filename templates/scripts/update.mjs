@@ -55,6 +55,17 @@ function findInstalled() {
   return best;
 }
 
+// The kit's Codex hook command, copied from codex-hook.mjs: update.mjs stays self-contained because it
+// may run beside stale scripts. update.test.mjs fails if the two copies differ.
+const gateTarget = "scripts/tbs/merge-gate.py";
+const gateNote = (digest) => `trust-before-scale: merge gate at ${gateTarget} is missing or differs from sha256 ${digest}; command not checked. Run the kit update with --codex-hook, then trust the hook again.`;
+function gateCommandFor(digest) {
+  const runner = `python3 -I -c 'import hashlib,sys;p=sys.argv[1];d=open(p,"rb").read().replace(b"\\r\\n",b"\\n");hashlib.sha256(d).hexdigest()!=sys.argv[2] and (print(sys.argv[3],file=sys.stderr),sys.exit(0));sys.argv=[p];exec(compile(d,p,"exec"),{"__name__":"__main__","__file__":p})' "$f" "${digest}" "${gateNote(digest)}"`;
+  return `if f="$(git rev-parse --show-toplevel 2>/dev/null)/${gateTarget}" && [ -f "$f" ]; then exec ${runner}; fi; echo "${gateNote(digest)}" >&2`;
+}
+const gateParts = gateCommandFor('DIGEST').split('DIGEST').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+const kitGateCommand = new RegExp(`^${gateParts[0]}[0-9a-f]{64}${gateParts.slice(1).join('[0-9a-f]{64}')}$`);
+
 function hasCodexHook(root) {
   let entries;
   try { entries = readJson(join(root, '.codex/hooks.json')).hooks?.PreToolUse ?? []; }
@@ -64,7 +75,8 @@ function hasCodexHook(root) {
   }
   // Match the kit entry even when it points to a previous plugin location.
   return entries.some(entry => entry.matcher === 'Bash' && entry.hooks?.some(hook =>
-    hook.type === 'command' && /hooks\/merge-gate\.py(?=["'\s]|$)/.test(hook.command ?? '')));
+    hook.type === 'command' && (/^python3\s+["']?(?:[A-Za-z]:)?[\\/][\s\S]*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(hook.command ?? '') ||
+      kitGateCommand.test(hook.command ?? ''))));
 }
 
 function main(args) {
@@ -93,8 +105,11 @@ function main(args) {
   };
 
   const root = git(process.cwd(), 'rev-parse', '--show-toplevel');
-  const current = readFileSync(join(root, 'scripts/tbs/VERSION'), 'utf8').trim();
-  if (!validVersion(current)) throw new Error('Expected a numeric version in scripts/tbs/VERSION.');
+  // Branch mode decides on the fetched base's version, so this checkout's own version is optional there.
+  let current;
+  try { current = readFileSync(join(root, 'scripts/tbs/VERSION'), 'utf8').trim(); }
+  catch (error) { if (error.code !== 'ENOENT' || !createBranch) throw error; }
+  if (!createBranch && !validVersion(current)) throw new Error('Expected a numeric version in scripts/tbs/VERSION.');
   const selected = findInstalled();
   if (!selected) {
     if (process.env.TBS_PLUGIN) console.error('TBS_PLUGIN does not point to an installed kit with a readable version.');
@@ -106,12 +121,13 @@ function main(args) {
   }
 
   const dryRun = flags.has('--dry-run');
-  const updatable = newer(selected.version, current);
+  const updatable = !validVersion(current) || newer(selected.version, current);
   if (dryRun || process.env.TBS_PLUGIN) {
-    if (dryRun) console.log(`Project kit version: ${current}.`);
+    if (dryRun) console.log(`Project kit version: ${current ?? 'not installed in this checkout'}.`);
     console.log(`Selected ${selected.dir} (${selected.version})${process.env.TBS_PLUGIN ? ' via TBS_PLUGIN' : ''}.`);
   }
-  if (!updatable) {
+  // Branch mode starts from the fetched base, so the base's version decides there, after the fetch.
+  if (!updatable && !createBranch) {
     console.log(`Already on ${current} (newest installed: ${selected.version}).`);
     if (dryRun) console.log('Dry run: no branch action or update needed.');
     return 0;
@@ -130,8 +146,12 @@ function main(args) {
   const branch = git(root, 'branch', '--show-current');
   const develop = optionalGit('config', '--get', 'gitflow.branch.develop');
   const production = optionalGit('config', '--get', 'gitflow.branch.master');
-  const prefix = optionalGit('config', '--get', 'gitflow.prefix.feature') ?? 'chore/';
-  const nextBranch = branchName ?? `${prefix}tbs-kit-${selected.version}`;
+  // Without git-flow config, a repository with a develop branch still works git-flow style: use feature/.
+  const hasDevelopRef = () => ['refs/heads/develop', 'refs/remotes/origin/develop']
+    .some(ref => optionalGit('show-ref', '--verify', '--quiet', ref) !== undefined);
+  const branchFor = () => branchName ??
+    `${optionalGit('config', '--get', 'gitflow.prefix.feature') ?? (develop || hasDevelopRef() ? 'feature/' : 'chore/')}tbs-kit-${selected.version}`;
+  let nextBranch = branchFor();
   if (!createBranch && ['', 'main', 'master', 'develop', develop, production].includes(branch)) {
     const hint = `node scripts/tbs/update.mjs --branch${flags.has('--codex-hook') ? ' --codex-hook' : ''}`;
     throw new Error(`Cannot update on ${branch || 'detached HEAD'}. Run: ${hint} (creates ${nextBranch})`);
@@ -176,13 +196,16 @@ function main(args) {
     return installerArgs;
   };
 
-  let installerArgs = checkTargets();
+  // A real branch run checks targets only once it knows the fetched base needs an update.
+  let installerArgs = createBranch && !dryRun ? undefined : checkTargets();
   if (createBranch) {
     if (!optionalGit('config', '--get', 'remote.origin.url')) throw new Error('Cannot create an update branch: no origin remote.');
     git(root, 'check-ref-format', '--branch', nextBranch);
   }
   if (dryRun) {
-    console.log(`Dry run: update ${current} → ${selected.version}; ${createBranch ? `create ${nextBranch} from the fetched integration branch` : `stay on ${branch}`}.`);
+    console.log(createBranch
+      ? `Dry run: after fetching origin, create ${nextBranch} (name provisional until the fetch) from the integration branch and update it to ${selected.version} if its kit is older.`
+      : `Dry run: update ${current} → ${selected.version}; stay on ${branch}.`);
     console.log(`Would run tbs-init ${installerArgs.join(' ')} and node scripts/tbs/doctor.mjs.`);
     return 0;
   }
@@ -199,7 +222,23 @@ function main(args) {
     if (optionalGit('show-ref', '--verify', '--quiet', baseRef) === undefined) {
       throw new Error(`Integration branch origin/${integration} was not found after fetching origin.`);
     }
-    git(root, 'switch', '--no-overwrite-ignore', '--no-track', '-c', nextBranch, baseRef);
+    // The branch starts from the fetched base, not this checkout: never update a base that already has
+    // this kit version or a newer one (a downgrade), nor one whose version cannot be read. Pin the commit
+    // once, so a concurrent fetch cannot move the branch point after the check.
+    const baseCommit = git(root, 'rev-parse', '--verify', `${baseRef}^{commit}`);
+    const baseFile = spawnSync('git', ['show', `${baseCommit}:scripts/tbs/VERSION`], { cwd: root, env, encoding: 'utf8' });
+    const baseVersion = baseFile.status === 0 ? baseFile.stdout.trim() : undefined;
+    if (!baseVersion || !validVersion(baseVersion)) {
+      throw new Error(`origin/${integration} has no valid scripts/tbs/VERSION; cannot tell whether this would downgrade it. Update in place on a feature branch (omit --branch).`);
+    }
+    if (!newer(selected.version, baseVersion)) {
+      console.log(`origin/${integration} already has ${baseVersion} (newest installed: ${selected.version}); no update branch created.`);
+      return 0;
+    }
+    checkTargets();
+    nextBranch = branchFor();
+    git(root, 'check-ref-format', '--branch', nextBranch);
+    git(root, 'switch', '--no-overwrite-ignore', '--no-track', '-c', nextBranch, baseCommit);
     installerArgs = checkTargets();
   }
   const installerStatus = runNode(root, selected.installer, ...installerArgs);

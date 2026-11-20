@@ -3,14 +3,14 @@ import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { laneAllowance, main as lanesMain } from "./lanes.mjs";
 import { evidenceFor, loadConfig } from "./config.mjs";
 import { decide, eligibility, reviewClean, run } from "./self-merge.mjs";
-import { casesHash, hiddenPaths, loadCases, runCase, skillHash, gated, judged, recordProblems, reviewText, settingsHash, validateCase, main as evalMain } from "./skill-eval.mjs";
+import { casesHash, hiddenPaths, runCase, gated, judged, recordProblems, reviewText, settingsHash, validateCase, main as evalMain } from "./skill-eval.mjs";
 import { discover, discoverIn, problems, topLevelNames, main as mapMain } from "./feature-map.mjs";
 import { bootEnv, isolate, portsNeeded } from "./free-ports.mjs";
 
@@ -24,7 +24,7 @@ const lane = {
   gateRanPattern: "all good",
   review: { ranPattern: "REVIEW RAN", findingPattern: "\\[P[123]\\]" },
 };
-const config = { baseBranch: "develop", mergeGate: { exitMarker: "EXIT=0" }, selfMerge: lane };
+const config = { level: 4, baseBranch: "develop", mergeGate: { exitMarker: "EXIT=0" }, selfMerge: lane };
 const gateLog = (head = HEAD, exit = "EXIT=0") => `HEAD=${head}\nall good\n${exit}\n`;
 const reviewLog = (extra = "") => `HEAD=${HEAD}\nlog=x\n${extra}REVIEW RAN (4 commands)\nEXIT=0\n`;
 const info = { headRefOid: HEAD, baseRefName: "develop", state: "OPEN", isDraft: false };
@@ -165,11 +165,36 @@ function inRepo(fn) {
 }
 const suite = { name: "routine", base: "HEAD", skills: [".claude/skills/routine"], reviewPrompt: "/routine {branch}" };
 const seed = "diff --git a/src/x.ts b/src/x.ts\n--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1 +1 @@\n-const count = 1;\n+const count = 2;\n";
-const caseValue = { id: "count", expect: "gate", rule: "count stays one", mustName: ["count"], file: "src/x.ts", gate: "printf 'src/x.ts incorrect\\n'; exit 1" };
+const caseValue = { id: "count", expect: "gate", rule: "count stays one", mustName: ["count"], file: "src/x.ts", gate: "if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi" };
 function putCase(put, patch = seed, value = caseValue) {
   put("evals/routine/cases/count/case.json", JSON.stringify(value));
   put("evals/routine/cases/count/seed.patch", patch);
 }
+
+for (const args of [["--case"], ["--case", "--x"]]) {
+  test(`skill-eval rejects ${args.join(" ")} without a case ID`, () => inRepo(({ root, put }) => {
+    putCase(put);
+    const config = { level: 4, evals: { suites: [suite] } };
+    put(".claude/trust-before-scale.json", JSON.stringify(config));
+    for (const file of ["skill-eval.mjs", "config.mjs"]) {
+      put(`scripts/tbs/${file}`, readFileSync(new URL(file, import.meta.url)));
+    }
+    const bundledSchema = new URL("./config.schema.json", import.meta.url);
+    const schema = existsSync(bundledSchema) ? bundledSchema : new URL("../../schema/config.schema.json", import.meta.url);
+    put("scripts/tbs/config.schema.json", readFileSync(schema));
+    const result = spawnSync(process.execPath, ["scripts/tbs/skill-eval.mjs", "routine", ...args], {
+      cwd: root, encoding: "utf8",
+    });
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stdout + result.stderr, /Usage:.*--case <id>/);
+    assert.equal(existsSync(join(root, "evals/routine/result.json")), false);
+  }));
+}
+
+test("skill-eval judge matches the basename case-insensitively", () => {
+  const evidence = "X.ts increments COUNT";
+  assert.equal(judged(JSON.stringify({ caught: true, evidence }), evidence, caseValue).pass, true);
+});
 
 test("required PR comments must each match and name this head in the same comment", () => {
   const requiredComments = [{ name: "Codex local", pattern: "^## Codex review \\(local\\)" }, { name: "routine", pattern: "^## Acme Flutter review \\(routine\\)" }];
@@ -206,7 +231,7 @@ test("the lane permits new eval files and refuses changes to existing ones", () 
 test("empty eval suites fail dry-run, a run and --check with the seed hint", () => inRepo(({ root }) => {
   for (const argv of [["routine", "--dry-run"], ["routine"], ["--check"]]) {
     const output = [];
-    assert.equal(evalMain(argv, { root, config: { evals: { suites: [suite] } }, log: (line) => output.push(line) }), 1);
+    assert.equal(evalMain(argv, { root, config: { level: 4, evals: { suites: [suite] } }, log: (line) => output.push(line) }), 1);
     assert.ok(output.some((line) => line.includes("no cases in evals/routine/cases: add 3–8 seeds from real failures")));
   }
 }));
@@ -216,7 +241,7 @@ test("dry-run checks every seed on the configured base and reports stale cases",
   // A dirty checkout must not affect the base used by --dry-run.
   put("src/x.ts", "uncommitted work\n");
   const output = [];
-  const options = { root, config: { evals: { suites: [suite] } }, log: (line) => output.push(line) };
+  const options = { root, config: { level: 4, evals: { suites: [suite] } }, log: (line) => output.push(line) };
   assert.equal(evalMain(["routine", "--dry-run"], options), 0);
   assert.ok(output.some((line) => line.includes("codex default")));
   putCase(put, seed.replace("-const count = 1;", "-const count = 9;"));
@@ -244,24 +269,73 @@ test("all repeats must pass and old records count as one repeat", () => {
   assert.ok(recordProblems(partial, { hash: "h", settingsHash: "s", cases, repeats: 2 }).length);
 });
 
-test("suite runs every repeat and records passes/repeats", () => inRepo(({ root, put }) => {
+test("suite stops a gate case at its first failed repeat and records passes/repeats", () => inRepo(({ root, put }) => {
   putCase(put);
-  let gates = 0;
+  let baseGates = 0;
+  let seededGates = 0;
   const runner = (command, args, options) => {
     if (command === "sh") {
-      assert.equal(readFileSync(join(options.cwd, "src/x.ts"), "utf8"), "const count = 2;\n");
+      const source = readFileSync(join(options.cwd, "src/x.ts"), "utf8");
       assert.equal(realpathSync(execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: options.cwd, encoding: "utf8" }).trim()), realpathSync(join(root, ".git")));
-      return { status: ++gates === 2 ? 0 : 1, stdout: "src/x.ts", stderr: "" };
+      if (source === "const count = 1;\n") {
+        baseGates++;
+        return { status: 0 };
+      }
+      assert.equal(source, "const count = 2;\n");
+      return { status: ++seededGates === 2 ? 0 : 1, stdout: "src/x.ts", stderr: "" };
     }
     return spawnSync(command, command === "git" ? ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args] : args, { encoding: "utf8", ...options });
   };
-  assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [{ ...suite, repeats: 3 }] } }, run: runner, log: () => {} }), 1);
+  assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [{ ...suite, repeats: 3 }] } }, run: runner, log: () => {} }), 1);
   const result = JSON.parse(readFileSync(join(root, "evals/routine/result.json"), "utf8")).cases[0];
-  assert.equal(gates, 3);
-  assert.equal(result.passes, 2);
+  assert.equal(baseGates, 2);
+  assert.equal(seededGates, 2);
+  assert.deepEqual(result.baseExit, [0, 0]);
+  assert.deepEqual(result.seededExit, [1, 0]);
+  assert.equal(result.passes, 1);
   assert.equal(result.repeats, 3);
   assert.equal(result.pass, false);
+  assert.equal(result.evidence.length, 2);
 }));
+
+for (const caught of [false, true]) {
+  test(`suite ${caught ? "runs every passing repeat" : "stops after the first failed review"}`, () => inRepo(({ root, put }) => {
+    putCase(put, seed, { ...caseValue, expect: "review" });
+    const repeats = 3;
+    const exit = caught ? 0 : 1;
+    const expectedRuns = caught ? repeats : 1;
+    const evidence = "src/x.ts has incorrect count";
+    let reviews = 0;
+    let judgments = 0;
+    const run = (command, args, options) => {
+      if (command === "claude") {
+        reviews++;
+        return { status: 0, stdout: JSON.stringify({ result: evidence }) };
+      }
+      if (command === "codex") {
+        judgments++;
+        writeFileSync(args[args.indexOf("-o") + 1], JSON.stringify({ caught, evidence }));
+        return { status: 0 };
+      }
+      return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
+    };
+    const options = { root, config: { level: 4, evals: { suites: [{ ...suite, repeats }] } }, run, log: () => {} };
+    assert.equal(evalMain(["routine"], options), exit);
+    assert.equal(reviews, expectedRuns);
+    assert.equal(judgments, expectedRuns);
+    const [result] = JSON.parse(readFileSync(join(root, "evals/routine/result.json"), "utf8")).cases;
+    assert.equal(result.repeats, repeats);
+    assert.equal(result.passes, caught ? repeats : 0);
+    assert.equal(result.pass, caught);
+    assert.equal(result.evidence.length, expectedRuns);
+    assert.equal(evalMain(["--check", "--fresh"], options), exit);
+    reviews = 0;
+    judgments = 0;
+    assert.equal(evalMain(["routine", "--case", "count"], options), exit);
+    assert.equal(reviews, expectedRuns);
+    assert.equal(judgments, expectedRuns);
+  }));
+}
 
 test("judge model is optional and the environment overrides suite settings", () => inRepo(({ root, put }) => {
   putCase(put, seed, { ...caseValue, expect: "review" });
@@ -281,10 +355,10 @@ test("judge model is optional and the environment overrides suite settings", () 
         }
         return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
       };
-      assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [{ ...suite, judgeModel: configured }] } }, run: runner, log: () => {} }), 0);
+      assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [{ ...suite, judgeModel: configured }] } }, run: runner, log: () => {} }), 0);
       assert.ok(judgedOnce);
       const output = [];
-      assert.equal(evalMain(["routine", "--dry-run"], { root, config: { evals: { suites: [{ ...suite, judgeModel: configured }] } }, log: (line) => output.push(line) }), 0);
+      assert.equal(evalMain(["routine", "--dry-run"], { root, config: { level: 4, evals: { suites: [{ ...suite, judgeModel: configured }] } }, log: (line) => output.push(line) }), 0);
       assert.ok(output.some((line) => line.includes(expected ?? "codex default")));
     }
   } finally { if (old === undefined) delete process.env.TBS_JUDGE_MODEL; else process.env.TBS_JUDGE_MODEL = old; }
@@ -293,11 +367,18 @@ test("judge model is optional and the environment overrides suite settings", () 
 test("feature discovery refuses an empty or missing source with the fix hint", () => inRepo(({ root, put }) => {
   const hint = /no screens found: fix featureMap.sources in \.claude\/trust-before-scale.json/;
   for (const dir of ["src", "missing"]) {
-    const config = { featureMap: { sources: [{ dir, ext: ".tsx", item: "path: '([^']+)'" }] } };
+    const config = { level: 4, featureMap: { sources: [{ dir, ext: ".tsx", item: "path: '([^']+)'" }] } };
     for (const argv of [["--list"], ["--init"]]) assert.throws(() => mapMain(argv, { root, config, log: () => {} }), hint);
   }
+  // #20: check mode with an existing, empty map must not report "covers all 0 screens"
+  mkdirSync(join(root, "src"), { recursive: true });
+  put("src/routes.tsx", "route('/home')");
+  put("docs/feature-map.json", JSON.stringify({ screens: [], notMappedYet: [] }));
+  const unmatched = { level: 4, featureMap: { sources: [{ dir: "src", ext: ".tsx", item: "path: '([^']+)'" }] } };
+  assert.throws(() => mapMain([], { root, config: unmatched, log: () => {} }), hint);
+  rmSync(join(root, "docs"), { recursive: true });
   put("src/routes.tsx", "path: '/home'");
-  const config = { featureMap: { sources: [{ dir: "src", ext: ".tsx", item: "path: '([^']+)'" }] } };
+  const config = { level: 4, featureMap: { sources: [{ dir: "src", ext: ".tsx", item: "path: '([^']+)'" }] } };
   assert.equal(mapMain(["--list"], { root, config, log: () => {} }), 0);
   mkdirSync(join(root, "docs"));
   assert.equal(mapMain(["--init"], { root, config, log: () => {} }), 0);
@@ -335,7 +416,7 @@ test("repeat configuration cannot skip all runs or silently truncate them", () =
   putCase(put);
   for (const repeats of [0, -1, 1.5, "2"]) {
     for (const argv of [["routine", "--dry-run"], ["routine"], ["--check"]]) {
-      assert.throws(() => evalMain(argv, { root, config: { evals: { suites: [{ ...suite, repeats }] } }, log: () => {} }), /repeats must be a positive integer/);
+      assert.throws(() => evalMain(argv, { root, config: { level: 4, evals: { suites: [{ ...suite, repeats }] } }, log: () => {} }), /repeats must be a positive integer/);
     }
   }
 }));
@@ -359,7 +440,7 @@ for (const change of ["judge environment", "reviewPrompt", "missing settingsHash
       delete process.env.TBS_JUDGE_MODEL;
       const configured = { ...suite, judgeModel: "suite-judge" };
       const output = [];
-      const options = { root, config: { evals: { suites: [configured] } }, log: (line) => output.push(line),
+      const options = { root, config: { level: 4, evals: { suites: [configured] } }, log: (line) => output.push(line),
         run: (command, args, opts) => spawnSync(command, command === "git" ? ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args] : args, { encoding: "utf8", ...opts }) };
       assert.equal(evalMain(["routine"], options), 0);
       assert.equal(evalMain(["--check"], options), 0);
@@ -410,14 +491,14 @@ test("review repos hide answer keys in files and all history, preserve the seed 
     return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
   };
   const configured = { ...suite, hidePaths: ["private-key"] };
-  assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [configured] } }, run: runner, log: () => {} }), 0);
+  assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [configured] } }, run: runner, log: () => {} }), 0);
   assert.equal(reviews, 2);
   assert.equal(git("branch", "--list"), beforeBranches);
   assert.equal(git("worktree", "list"), beforeTrees);
   const output = [];
   const leakingRunner = (command, args, options) => command === "git" && args[0] === "rev-list"
     ? { status: 0, stdout: `${HEAD} evals/answer.txt\n` } : runner(command, args, options);
-  assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [configured] } }, run: leakingRunner, log: (line) => output.push(line) }), 1);
+  assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [configured] } }, run: leakingRunner, log: (line) => output.push(line) }), 1);
   assert.ok(output.some((line) => line.includes("blindness check failed")));
   assert.equal(reviews, 2);
 }));
@@ -425,7 +506,7 @@ test("review repos hide answer keys in files and all history, preserve the seed 
 test("hidden paths validate overlaps, patch targets and effective branch names; old settings become stale", () => inRepo(({ root, put }) => {
   putCase(put);
   for (const extra of [{ linkDirs: ["evals"] }, { skills: ["scripts/tbs/review"] }, { hidePaths: [".claude"] }, { hidePaths: ["../secret"] }, { hidePaths: ["/secret"] }]) {
-    assert.throws(() => evalMain(["routine", "--dry-run"], { root, config: { evals: { suites: [{ ...suite, ...extra }] } } }), /hidden path|invalid/);
+    assert.throws(() => evalMain(["routine", "--dry-run"], { root, config: { level: 4, evals: { suites: [{ ...suite, ...extra }] } } }), /hidden path|invalid/);
   }
   assert.throws(() => validateCase({ ...caseValue, id: "fixture-photo" }, "fixture-photo", seed), /must not reveal/);
   assert.throws(() => validateCase({ ...caseValue, expect: "review", file: "evals/x.ts" }, "count", seed.replaceAll("src/x.ts", "evals/x.ts")), /hidden path/);
@@ -452,7 +533,7 @@ test("review snapshot works when the checkout's hidden files differ from the sui
     return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
   };
   const output = [];
-  assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [{ ...suite, base }] } }, run: runner, log: (line) => output.push(line) }), 0, output.join("\n"));
+  assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [{ ...suite, base }] } }, run: runner, log: (line) => output.push(line) }), 0, output.join("\n"));
   assert.equal(reviews, 2);
 }));
 
@@ -468,9 +549,9 @@ test("a failed review case keeps the full review text and points to it", () => i
       return spawnSync(command, ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args], { encoding: "utf8", ...options });
     };
     const output = [];
-    assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [suite] } }, run: runner, log: (line) => output.push(line) }), 1);
+    assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [suite] } }, run: runner, log: (line) => output.push(line) }), 1);
     const evidence = JSON.parse(output.find((line) => line.startsWith("{"))).evidence;
-    assert.equal(evidence.length, 2);
+    assert.equal(evidence.length, 1);
     for (const entry of evidence) {
       const storedPath = entry.match(/\(full review: (.+)\)$/)[1];
       assert.equal(isAbsolute(storedPath), false);
@@ -570,7 +651,7 @@ test("trailing slash hidden paths reject targets and suite overlaps", () => {
 test("failed gate worktree add removes the branch it created", () => inRepo(({ root, git }) => {
   const before = git("branch", "--list");
   const runner = (command, args, options) => {
-    if (command === "git" && args[0] === "worktree" && args[1] === "add") {
+    if (command === "git" && args[0] === "worktree" && args[1] === "add" && args.includes("-b")) {
       git("branch", args[4], "HEAD");
       return { status: 1, stderr: "simulated worktree failure" };
     }
@@ -606,7 +687,7 @@ test("review links use one isolated run copy and remove it afterwards", () => in
     }
     return reviewRunner(command, args, options);
   };
-  assert.equal(evalMain(["routine"], { root, config: { evals: { suites: [{ ...suite, linkDirs: ["node_modules"], repeats: 2 }] } }, run: runner, log: () => {} }), 0);
+  assert.equal(evalMain(["routine"], { root, config: { level: 4, evals: { suites: [{ ...suite, linkDirs: ["node_modules"], repeats: 2 }] } }, run: runner, log: () => {} }), 0);
   assert.equal(targets.length, 2);
   assert.equal(targets[0], targets[1]);
   assert.equal(existsSync(targets[0]), false);
@@ -645,10 +726,8 @@ function laneFixture({ root, put }) {
   const cfg = { ...config, autopilot: { maxLanes: 4 }, evals: { suites: [suite] },
     featureMap: { file: "docs/feature-map.json", sources: [{ dir: "src", ext: ".ts", item: "const (\\w+)", id: "{item}" }] } };
   put("docs/feature-map.json", JSON.stringify({ notMappedYet: [{ id: "count", reason: "pending" }] }));
-  const record = { evidenceRule: 3, date: new Date().toISOString(), skillHash: skillHash(root, suite),
-    settingsHash: settingsHash(suite, true), casesHash: casesHash(loadCases(root, suite.name)),
-    cases: [{ id: "count", pass: true, passes: 2, repeats: 2 }] };
-  put("evals/routine/result.json", JSON.stringify(record));
+  assert.equal(evalMain(["routine"], { root, config: cfg, log: () => {} }), 0);
+  const record = JSON.parse(readFileSync(join(root, "evals/routine/result.json"), "utf8"));
   return { cfg, record, options: { root, config: cfg, ghRun: owedGh(() => []) } };
 }
 
@@ -886,27 +965,223 @@ test("self-merge checks configured evals before it can write", () => inRepo(({ r
   assert.match(output.join("\n"), /no result\.json/);
 }));
 
-test("fresh eval checks detect script changes while old records still pass", () => inRepo(({ root, git, put }) => {
-  const script = "scripts/gate.mjs";
-  put(script, "console.log('src/x.ts incorrect'); process.exitCode = 1;\n");
-  git("add", script);
-  git("-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", "commit", "-qm", "Gate script");
-  putCase(put, seed, { ...caseValue, gate: `node "${script}"` });
-  const output = [];
-  const options = { root, config: { evals: { suites: [suite] } }, log: line => output.push(line),
+test("self-merge refuses an eval record older than maxAgeDays, like lanes (#13)", () => inRepo(({ root, put }) => {
+  putCase(put);
+  const evalOptions = { root, config: { level: 4, evals: { suites: [suite] } }, log: () => {},
     run: (command, args, opts) => spawnSync(command, command === "git" ? ["-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", ...args] : args, { encoding: "utf8", ...opts }) };
-  assert.equal(evalMain(["routine"], options), 0);
-  assert.equal(evalMain(["--check", "--fresh"], options), 0);
-  put(script, "process.exitCode = 0;\n");
-  assert.equal(evalMain(["--check"], options), 0);
-  assert.equal(evalMain(["--check", "--fresh"], options), 1);
-  assert.match(output.join("\n"), /gate inputs changed/);
+  assert.equal(evalMain(["routine"], evalOptions), 0);
+  const path = join(root, "evals/routine/result.json");
+  const record = JSON.parse(readFileSync(path, "utf8"));
+  writeFileSync(path, JSON.stringify({ ...record, date: "2020-01-01T00:00:00Z" }));
+  assert.equal(evalMain(["--check"], evalOptions), 0);
+  const output = [];
+  const options = { root, config: { ...config, evals: { suites: [suite] } },
+    ghRun: args => {
+      if (args[1] === "view") return JSON.stringify(info);
+      if (args[0] === "api") return JSON.stringify([[{ filename: "docs/a.md", status: "added" }]]);
+      assert.fail(`unexpected write: ${args}`);
+    },
+    read: path => path === "r" ? reviewLog() : path === "x" ? "clean" : gateLog(),
+    log: line => output.push(line) };
+  assert.equal(run(["7", "--gate", "g", "--review", "r", "--dry-run"], options), 1);
+  assert.match(output.join("\n"), /eval: .*older than 7 days/);
+}));
+
+test("a gate that already fails on the clean base does not catch the seed", () => inRepo(({ root, put }) => {
+  putCase(put, seed, { ...caseValue, gate: "printf 'src/x.ts incorrect\\n'; exit 3" });
+  const config = { level: 4, evals: { suites: [{ ...suite, repeats: 1 }] } };
+  assert.equal(evalMain(["routine"], { root, config, log: () => {} }), 1);
+  const { cases: [result] } = JSON.parse(readFileSync(join(root, "evals/routine/result.json"), "utf8"));
+  assert.equal(result.pass, false);
+  assert.equal(result.baseExit, 3);
+  assert.equal(result.seededExit, null);
+  assert.match(result.evidence, /already fails on the clean base.*3/);
+}));
+
+const gateScript = "scripts/gate.mjs";
+const countGate = String.raw`import { readFileSync } from "node:fs";
+if (readFileSync("src/x.ts", "utf8") !== "const count = 1;\n") {
+  console.log("src/x.ts incorrect");
+  process.exitCode = 1;
+}
+`;
+
+function fingerprintFixture({ root, git, put }, files, item = {}, patch = seed, suiteOptions = {}) {
+  for (const [path, data] of Object.entries(files)) put(path, data);
+  git("add", ...Object.keys(files));
+  git("-c", "user.name=Kit Check", "-c", "user.email=kit@example.invalid", "commit", "-qm", "Gate inputs");
+  putCase(put, patch, { ...caseValue, gate: `node "${gateScript}"`, ...item });
+  const output = [];
+  const options = { root, config: { level: 4, evals: { suites: [{ ...suite, repeats: 1, ...suiteOptions }] } },
+    log: line => output.push(line) };
+  // Fingerprints are compared under --fresh only; plain() checks what project CI runs.
+  const check = (...args) => {
+    output.length = 0;
+    return evalMain(["--check", "--fresh", ...args.filter(arg => arg !== "--fresh")], options);
+  };
+  const plain = () => {
+    output.length = 0;
+    return evalMain(["--check"], options);
+  };
+  assert.equal(evalMain(["routine"], options), 0, output.join("\n"));
   const path = "evals/routine/result.json";
-  const record = JSON.parse(readFileSync(join(root, path), "utf8"));
+  return { check, plain, output, path, record: JSON.parse(readFileSync(join(root, path), "utf8")) };
+}
+
+test("fresh eval checks detect imported gate script changes; plain checks (CI) do not compare", () => inRepo((repo) => {
+  const { check, plain, output } = fingerprintFixture(repo, {
+    [gateScript]: 'import "./lib.mjs";\n',
+    "scripts/lib.mjs": countGate,
+  });
+  assert.equal(check(), 0);
+  repo.put("scripts/lib.mjs", countGate + "// changed\n");
+  assert.equal(plain(), 0, output.join("\n"));
+  assert.equal(check(), 1);
+  assert.match(output.join("\n"), /gate inputs changed/);
+}));
+
+test("fingerprint follows imports with a query and hashes every fallback candidate", () => inRepo((repo) => {
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: 'import "./lib.mjs?mode=ci";\nimport "./gate%20rules.mjs";\n' + countGate + '// require("./dep")\n',
+    "scripts/lib.mjs": "export {};\n",
+    "scripts/gate rules.mjs": "export {};\n",
+    "scripts/dep.mjs": "export {};\n",
+    "scripts/dep.js": "module.exports = {};\n",
+  });
+  assert.equal(check(), 0, output.join("\n"));
+  for (const [path, data] of [["scripts/lib.mjs", "export const x = 1;\n"], ["scripts/dep.js", "module.exports = { x: 1 };\n"], ["scripts/gate rules.mjs", "export const y = 1;\n"]]) {
+    const before = readFileSync(join(repo.root, path), "utf8");
+    repo.put(path, data);
+    assert.equal(check(), 1, path);
+    assert.match(output.join("\n"), /gate inputs changed/);
+    repo.put(path, before);
+  }
+}));
+
+test("gateInputs never hash the suite's own result file, but do hash another suite's", () => inRepo((repo) => {
+  const { check, output } = fingerprintFixture(repo, { [gateScript]: countGate, "evals/routine/result.json": "{}",
+    "evals/other/result.json": "{}" }, { gateInputs: ["evals/**"] });
+  assert.equal(check(), 0, output.join("\n"));
+  repo.put("evals/other/result.json", '{"changed":true}');
+  assert.equal(check(), 1);
+}));
+
+test("fingerprint ignores untracked files and accepts ./ in gateInputs", () => inRepo((repo) => {
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: 'import "./lib.mjs";\n' + countGate,
+    "scripts/lib.mjs": "export {};\n",
+    "scripts/extra/data.txt": "first",
+  }, { gateInputs: ["./scripts/extra/**"] });
+  repo.put("scripts/lib.mjs.js", "untracked fallback\n");
+  assert.equal(check(), 0, output.join("\n"));
+  repo.put("scripts/extra/data.txt", "second");
+  assert.equal(check(), 1);
+}));
+
+test("fingerprint follows require('.') and tracked symlinked directories", () => inRepo((repo) => {
+  repo.put("scripts/index.js", "module.exports = {};\n");
+  repo.put("scripts/rules/rules.mjs", "export {};\n");
+  symlinkSync("rules", join(repo.root, "scripts/current"), "dir");
+  repo.git("add", "scripts/index.js", "scripts/rules/rules.mjs", "scripts/current");
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: countGate + '// require(".")\nimport "./current/rules.mjs";\n',
+  });
+  assert.equal(check(), 0, output.join("\n"));
+  for (const path of ["scripts/index.js", "scripts/rules/rules.mjs"]) {
+    const before = readFileSync(join(repo.root, path), "utf8");
+    repo.put(path, before + "// changed\n");
+    assert.equal(check(), 1, path);
+    repo.put(path, before);
+  }
+}));
+
+test("import scanning stays fast on many adjacent comments", { timeout: 10_000 }, () => inRepo((repo) => {
+  const comments = "/* a */".repeat(40) + "// note\n".repeat(5);
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: `const text = ${JSON.stringify(`import x ${comments} from "pkg";`)};\n` + countGate,
+  });
+  assert.equal(check(), 0, output.join("\n"));
+}));
+
+test("an untracked symlink alias of a tracked module is not hashed", () => inRepo((repo) => {
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: 'import "./lib.mjs";\n' + countGate,
+    "scripts/lib.mjs": "export {};\n",
+  });
+  symlinkSync("lib.mjs", join(repo.root, "scripts/lib.mjs.js"));
+  assert.equal(check(), 0, output.join("\n"));
+}));
+
+test("fresh eval checks detect entry script changes", () => inRepo((repo) => {
+  repo.put("linked/expected.txt", "const count = 1;\n");
+  const { check, output, record } = fingerprintFixture(repo, {
+    [gateScript]: `import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+if (execFileSync("git", ["ls-files", "linked"], { encoding: "utf8" })) process.exit(2);
+const expected = readFileSync("linked/expected.txt", "utf8");
+if (readFileSync("src/x.ts", "utf8") !== expected) {
+  console.log("src/x.ts incorrect");
+  process.exitCode = 1;
+}
+`,
+  }, {}, seed, { linkDirs: ["linked"] });
+  assert.equal(check("--fresh"), 0);
+  repo.put(gateScript, "process.exitCode = 0;\n");
+  for (const args of [[], ["--fresh"]]) {
+    assert.equal(check(...args), 1);
+    assert.match(output.join("\n"), /gate inputs changed/);
+  }
+  assert.equal(record.cases[0].pass, true);
+  assert.equal(record.cases[0].baseExit, 0);
+  assert.equal(record.cases[0].seededExit, 1);
+}));
+
+test("eval fingerprint uses the clean base when the seed edits its own gate", () => inRepo((repo) => {
+  const patch = `diff --git a/${gateScript} b/${gateScript}
+--- a/${gateScript}
++++ b/${gateScript}
+@@ -1 +1 @@
+-console.log("Ready");
++console.error("${gateScript} incorrect"); process.exitCode = 1;
+`;
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: 'console.log("Ready");\n',
+  }, { file: gateScript }, patch);
+  assert.equal(check("--fresh"), 0, output.join("\n"));
+}));
+
+test("fresh eval checks detect changes to files matched by gateInputs", () => inRepo((repo) => {
+  const path = "scripts/lib/nested/expected.txt";
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: countGate,
+    [path]: "first",
+  }, { gateInputs: ["scripts/lib/**"] });
+  assert.equal(check(), 0);
+  repo.put("scripts/lib/untracked-cache.txt", "local only");
+  assert.equal(check(), 0, output.join("\n"));
+  repo.put(path, "second");
+  assert.equal(check(), 1);
+  assert.match(output.join("\n"), /gate inputs changed/);
+}));
+
+test("fresh eval checks reject a missing gate fingerprint", () => inRepo((repo) => {
+  const { check, plain, output, path, record } = fingerprintFixture(repo, { [gateScript]: countGate });
   delete record.gateFingerprint;
-  put(path, JSON.stringify(record));
-  assert.equal(evalMain(["--check", "--fresh"], options), 0);
-  assert.match(output.join("\n"), /predates the gate fingerprint/);
+  repo.put(path, JSON.stringify(record));
+  assert.equal(plain(), 0);
+  assert.equal(check(), 1);
+  assert.match(output.join("\n"), /record has no gate fingerprint: run it again/);
+}));
+
+test("gate fingerprints follow cyclic imports and terminate", () => inRepo((repo) => {
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: 'import "./lib.mjs";\n' + countGate,
+    "scripts/lib.mjs": 'import "./gate.mjs";\n',
+  });
+  assert.equal(check(), 0);
+  repo.put("scripts/lib.mjs", 'import "./gate.mjs";\n// changed\n');
+  assert.equal(check("--fresh"), 1);
+  assert.match(output.join("\n"), /gate inputs changed/);
 }));
 
 test("Next.js parallel pages share the same URL ID", () => inRepo(({ root, put }) => {

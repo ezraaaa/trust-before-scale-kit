@@ -1,6 +1,6 @@
 ---
 name: learn
-description: "Record mistakes and turn repeated failures or checks that did not hold into stronger prevention. Use after review findings, reverts, red gates on merged code, and owner corrections."
+description: "Record mistakes and turn repeats or checks that did not hold into stronger prevention. Use after review findings, reverts, red gates on merged code and owner corrections."
 ---
 
 # Learn from outcomes
@@ -19,6 +19,12 @@ For each due class, draft prevention on a branch for the owner to accept. Prefer
 a lint with a useful fix, tests, hooks or gates; use docs for remaining judgment. A review miss gets a seeded
 eval case and a measured review pass. Prove the check red on the original mistake and green on the fix.
 Never merge the draft yourself.
+
+At adoption level 4, the owner may not be around to accept a draft or answer a question. Do not wait: park
+that item (keep its branch, pushed only if the project's rules already allow it, and note the branch and
+your recommendation where the project keeps owner questions) and
+work on what does not need them, such as other due classes, outcomes to record and checks to prove red.
+Absence is never acceptance: the draft stays unmerged and the answer stays pending until the owner gives it.
 
 After the owner accepts and ships the check, add a row to the shipped-enforcers table with the class,
 enforcer id and actual UTC ship timestamp. That row links the class to its enforcer.
