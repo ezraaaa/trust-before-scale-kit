@@ -166,11 +166,12 @@ function gateInput(root, item) {
     if (scanned.has(real)) continue;
     scanned.add(real);
     for (const specifier of relativeModules(data)) {
-      const literal = resolve(dirname(real), specifier);
+      // ESM resolves "./lib.mjs?mode=ci" to lib.mjs; hash every existing candidate, since ESM and
+      // CommonJS pick different ones (over-including only makes a record stale sooner).
+      const literal = resolve(dirname(real), specifier.replace(/[?#].*$/s, ""));
       const candidates = [literal, ...moduleExtensions.map(ext => literal + ext),
         ...moduleExtensions.map(ext => join(literal, "index" + ext))];
-      const dependency = candidates.find(candidate => gateFile(root, candidate));
-      if (dependency) pending.push(dependency);
+      pending.push(...candidates.filter(candidate => gateFile(root, candidate)));
     }
   }
   if (item.gateInputs?.length) {
@@ -180,7 +181,8 @@ function gateInput(root, item) {
     const patterns = item.gateInputs.map(pattern => `:(top,glob)${pattern}`);
     const paths = must(sh("git", ["ls-files", "-z", "--cached", "--", ...patterns], { cwd: root }), "list gate inputs");
     for (const path of paths.split("\0").filter(Boolean)) {
-      if (files.has(path)) continue;
+      // A suite's own record changes on every run; hashing it would make each new record stale.
+      if (files.has(path) || /^evals\/[^/]+\/result\.json$/.test(path)) continue;
       const real = gateFile(root, resolve(root, path));
       if (real) files.set(path, readFileSync(real));
     }

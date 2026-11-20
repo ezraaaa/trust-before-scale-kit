@@ -1034,6 +1034,29 @@ test("plain eval checks detect imported gate script changes", () => inRepo((repo
   assert.match(output.join("\n"), /gate inputs changed/);
 }));
 
+test("fingerprint follows imports with a query and hashes every fallback candidate", () => inRepo((repo) => {
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: 'import "./lib.mjs?mode=ci";\n' + countGate + '// require("./dep")\n',
+    "scripts/lib.mjs": "export {};\n",
+    "scripts/dep.mjs": "export {};\n",
+    "scripts/dep.js": "module.exports = {};\n",
+  });
+  assert.equal(check(), 0, output.join("\n"));
+  for (const [path, data] of [["scripts/lib.mjs", "export const x = 1;\n"], ["scripts/dep.js", "module.exports = { x: 1 };\n"]]) {
+    const before = readFileSync(join(repo.root, path), "utf8");
+    repo.put(path, data);
+    assert.equal(check(), 1, path);
+    assert.match(output.join("\n"), /gate inputs changed/);
+    repo.put(path, before);
+  }
+}));
+
+test("gateInputs never hash the suite's own result file", () => inRepo((repo) => {
+  const { check, output } = fingerprintFixture(repo, { [gateScript]: countGate, "evals/routine/result.json": "{}" },
+    { gateInputs: ["evals/**"] });
+  assert.equal(check(), 0, output.join("\n"));
+}));
+
 test("plain and fresh eval checks detect entry script changes", () => inRepo((repo) => {
   repo.put("linked/expected.txt", "const count = 1;\n");
   const { check, output, record } = fingerprintFixture(repo, {
