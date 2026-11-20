@@ -229,7 +229,8 @@ test('dry run shows the selection and branch action without changing files, refs
   const result = run(['--branch', '--dry-run']);
   assert.equal(result.status, 0, result.stderr);
   assert.ok(result.stdout.includes(selected));
-  assert.ok(result.stdout.includes(`1.9.0 → 1.10.0; create ${updateBranch}`));
+  assert.ok(result.stdout.includes(`create ${updateBranch} (name provisional until the fetch)`), result.stdout);
+  assert.ok(result.stdout.includes('update it to 1.10.0 if its kit is older'), result.stdout);
   assert.doesNotMatch(result.stdout, /doctor ran/);
   untouched();
   assert.deepEqual(readFileSync(join(root, '.git/index')), index);
@@ -311,6 +312,19 @@ test('--branch stops before branching when the fetched base already has the kit 
   assert.match(result.stdout, /origin\/main already has 1\.11\.0/);
   assert.equal(git('branch', '--show-current'), 'work');
   untouched();
+});
+
+test('--branch updates an older fetched base even when the starting checkout is already current', t => {
+  const { cache, git, put, commit, run, installed, addOrigin } = fixture(t);
+  cache('1.10.0');
+  addOrigin();
+  git('switch', '-q', '-c', 'work');
+  put(versionPath, '1.10.0\n');
+  commit();
+  const result = run(['--branch']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(git('branch', '--show-current'), updateBranch);
+  assert.deepEqual(installed().args, ['--update']);
 });
 
 test('refuses an update branch when origin is missing or cannot be fetched', t => {

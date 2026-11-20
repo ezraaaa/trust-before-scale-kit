@@ -123,7 +123,8 @@ function main(args) {
     if (dryRun) console.log(`Project kit version: ${current}.`);
     console.log(`Selected ${selected.dir} (${selected.version})${process.env.TBS_PLUGIN ? ' via TBS_PLUGIN' : ''}.`);
   }
-  if (!updatable) {
+  // Branch mode starts from the fetched base, so the base's version decides there, after the fetch.
+  if (!updatable && !createBranch) {
     console.log(`Already on ${current} (newest installed: ${selected.version}).`);
     if (dryRun) console.log('Dry run: no branch action or update needed.');
     return 0;
@@ -198,7 +199,9 @@ function main(args) {
     git(root, 'check-ref-format', '--branch', nextBranch);
   }
   if (dryRun) {
-    console.log(`Dry run: update ${current} → ${selected.version}; ${createBranch ? `create ${nextBranch} from the fetched integration branch` : `stay on ${branch}`}.`);
+    console.log(createBranch
+      ? `Dry run: after fetching origin, create ${nextBranch} (name provisional until the fetch) from the integration branch and update it to ${selected.version} if its kit is older.`
+      : `Dry run: update ${current} → ${selected.version}; stay on ${branch}.`);
     console.log(`Would run tbs-init ${installerArgs.join(' ')} and node scripts/tbs/doctor.mjs.`);
     return 0;
   }
