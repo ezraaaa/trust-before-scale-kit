@@ -344,6 +344,33 @@ test('--branch refuses a fetched base whose kit version is missing or malformed'
   }
 });
 
+test('--branch reports a current base before checking installer targets', t => {
+  const { cache, git, put, commit, run, untouched, addOrigin } = fixture(t);
+  cache('1.10.0');
+  put(versionPath, '1.10.0\n');
+  commit();
+  addOrigin();
+  git('switch', '-q', '-c', 'work');
+  put('scripts/tbs/new.mjs', 'untracked installer target');
+  const result = run(['--branch']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /already has 1\.10\.0/);
+  untouched();
+});
+
+test('--branch runs from a checkout that predates the kit when the fetched base has an older kit', t => {
+  const { cache, git, commit, run, installed, addOrigin } = fixture(t);
+  cache('1.10.0');
+  addOrigin();
+  git('switch', '-q', '-c', 'work');
+  git('rm', '-q', versionPath);
+  commit();
+  const result = run(['--branch']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(git('branch', '--show-current'), updateBranch);
+  assert.deepEqual(installed().args, ['--update']);
+});
+
 test('refuses an update branch when origin is missing or cannot be fetched', t => {
   const { cache, git, run, untouched } = fixture(t);
   cache('1.10.0');

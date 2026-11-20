@@ -105,8 +105,11 @@ function main(args) {
   };
 
   const root = git(process.cwd(), 'rev-parse', '--show-toplevel');
-  const current = readFileSync(join(root, 'scripts/tbs/VERSION'), 'utf8').trim();
-  if (!validVersion(current)) throw new Error('Expected a numeric version in scripts/tbs/VERSION.');
+  // Branch mode decides on the fetched base's version, so this checkout's own version is optional there.
+  let current;
+  try { current = readFileSync(join(root, 'scripts/tbs/VERSION'), 'utf8').trim(); }
+  catch (error) { if (error.code !== 'ENOENT' || !createBranch) throw error; }
+  if (!createBranch && !validVersion(current)) throw new Error('Expected a numeric version in scripts/tbs/VERSION.');
   const selected = findInstalled();
   if (!selected) {
     if (process.env.TBS_PLUGIN) console.error('TBS_PLUGIN does not point to an installed kit with a readable version.');
@@ -118,9 +121,9 @@ function main(args) {
   }
 
   const dryRun = flags.has('--dry-run');
-  const updatable = newer(selected.version, current);
+  const updatable = !validVersion(current) || newer(selected.version, current);
   if (dryRun || process.env.TBS_PLUGIN) {
-    if (dryRun) console.log(`Project kit version: ${current}.`);
+    if (dryRun) console.log(`Project kit version: ${current ?? 'not installed in this checkout'}.`);
     console.log(`Selected ${selected.dir} (${selected.version})${process.env.TBS_PLUGIN ? ' via TBS_PLUGIN' : ''}.`);
   }
   // Branch mode starts from the fetched base, so the base's version decides there, after the fetch.
@@ -193,7 +196,8 @@ function main(args) {
     return installerArgs;
   };
 
-  let installerArgs = checkTargets();
+  // A real branch run checks targets only once it knows the fetched base needs an update.
+  let installerArgs = createBranch && !dryRun ? undefined : checkTargets();
   if (createBranch) {
     if (!optionalGit('config', '--get', 'remote.origin.url')) throw new Error('Cannot create an update branch: no origin remote.');
     git(root, 'check-ref-format', '--branch', nextBranch);
@@ -231,6 +235,7 @@ function main(args) {
       console.log(`origin/${integration} already has ${baseVersion} (newest installed: ${selected.version}); no update branch created.`);
       return 0;
     }
+    checkTargets();
     nextBranch = branchFor();
     git(root, 'check-ref-format', '--branch', nextBranch);
     git(root, 'switch', '--no-overwrite-ignore', '--no-track', '-c', nextBranch, baseCommit);
