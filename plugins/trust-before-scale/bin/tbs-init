@@ -61,8 +61,10 @@ const kitGateCommand = new RegExp(`^${gateCommandFor("DIGEST").replace(/[.*+?^${
 // An update or forced reinstall replaces the gate, so it refreshes an existing pinned kit hook (its
 // digest follows the new gate) without opting projects that have none into Codex hooks. Only the exact
 // pinned command counts here: an old absolute-path hook is replaced only on an explicit --codex-hook.
+// Old absolute-path hooks count as the kit's only on an explicit --codex-hook; an automatic refresh
+// touches nothing but the pinned kit command, so a separate policy hook named merge-gate.py survives.
 const isKitHook = (event, entry, hook) => event === "PreToolUse" && entry.matcher === "Bash" && hook?.type === "command" &&
-  (/^python3\s+["']?(?:[A-Za-z]:)?[\\/].*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(hook.command ?? "") || kitGateCommand.test(hook.command ?? ""));
+  ((args.includes("--codex-hook") && /^python3\s+["']?(?:[A-Za-z]:)?[\\/][\s\S]*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(hook.command ?? "")) || kitGateCommand.test(hook.command ?? ""));
 let hasKitHook = false;
 if ((update || force) && root) {
   try {

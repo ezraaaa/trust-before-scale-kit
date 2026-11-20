@@ -41,7 +41,8 @@ test('preserves unrelated hooks and metadata; replaces all old kit entries on up
       { type: 'command', command: 'python3 "/old kit/hooks/merge-gate.py"' },
       { type: 'command', command: 'echo shared' },
     ] }, { matcher: 'Bash', hooks: [{ type: 'command', command: 'python3 /other/hooks/merge-gate.py' }] },
-    { matcher: 'Bash', hooks: [{ type: 'command', command: 'python3 "C:\\\\Users\\\\me\\\\kit\\\\hooks\\\\merge-gate.py"' }] }],
+    { matcher: 'Bash', hooks: [{ type: 'command', command: 'python3 "C:\\\\Users\\\\me\\\\kit\\\\hooks\\\\merge-gate.py"' }] },
+    { matcher: 'Bash', hooks: [{ type: 'command', command: 'python3 "/odd\nkit/hooks/merge-gate.py"' }] }],
   } }));
   install(root);
   const hooks = read(root);
@@ -153,6 +154,14 @@ test('--force refreshes a pinned kit hook; a plain --update leaves an unrelated 
     writeFileSync(join(other, '.codex/hooks.json'), JSON.stringify(policy));
     install(other, ['--update']);
     assert.deepEqual(read(other), policy);
+    // With a pinned kit hook present, the automatic refresh still keeps the policy hook.
+    install(other, ['--update', '--codex-hook']);
+    const pinned = read(other).hooks.PreToolUse.at(-1);
+    pinned.hooks[0].command = gateCommandFor('0'.repeat(64));
+    writeFileSync(join(other, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [policy.hooks.PreToolUse[0], pinned] } }));
+    install(other, ['--update']);
+    assert.deepEqual(read(other).hooks.PreToolUse[0], policy.hooks.PreToolUse[0]);
+    assert.equal(read(other).hooks.PreToolUse.length, 2);
   } finally { rmSync(other, { recursive: true, force: true }); }
 }));
 test('an update replaces a hook pinned to an older gate digest', () => fixture(root => {
