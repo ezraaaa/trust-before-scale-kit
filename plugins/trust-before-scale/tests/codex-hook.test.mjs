@@ -121,6 +121,22 @@ test('tbs-init writes exactly the command codex-hook.mjs recognises, pinned to t
   assert.equal(kitGateDigest(command), digest);
   assert.equal(command, gateCommandFor(digest));
 }));
+test('a plain --update refreshes an existing kit hook, and adds none where there was none', () => fixture(root => {
+  install(root);
+  const hooks = read(root);
+  hooks.hooks.PreToolUse.at(-1).hooks[0].command = gateCommandFor('0'.repeat(64));
+  writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify(hooks));
+  install(root, ['--update']);
+  assert.equal(kitGateDigest(read(root).hooks.PreToolUse.at(-1).hooks[0].command) === '0'.repeat(64), false);
+  assert.equal(read(root).hooks.PreToolUse.length, 1);
+  const other = mkdtempSync(join(tmpdir(), 'tbs-codex-none-'));
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: other });
+    install(other, ['generic']);
+    install(other, ['--update']);
+    assert.equal(existsSync(join(other, '.codex/hooks.json')), false);
+  } finally { rmSync(other, { recursive: true, force: true }); }
+}));
 test('an update replaces a hook pinned to an older gate digest', () => fixture(root => {
   install(root);
   const hooks = read(root);

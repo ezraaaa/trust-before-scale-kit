@@ -58,7 +58,20 @@ const gateRunner = (digest) => `python3 -I -c 'import hashlib,sys;p=sys.argv[1];
 const gateCommandFor = (digest) => `if ${gateLookup} && [ -f "$f" ]; then exec ${gateRunner(digest)}; fi; echo "${gateNote(digest)}" >&2`;
 const gateCommand = gateCommandFor(gateDigest);
 const kitGateCommand = new RegExp(`^${gateCommandFor("DIGEST").replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll("DIGEST", "[0-9a-f]{64}")}$`);
-if (!listTargets && args.includes("--codex-hook")) {
+// An update refreshes an existing kit hook (its digest follows the new gate) without opting projects
+// that have none into Codex hooks.
+const isKitHook = (event, entry, hook) => event === "PreToolUse" && entry.matcher === "Bash" && hook?.type === "command" &&
+  (/^python3\s+["']?(?:[A-Za-z]:)?[\\/].*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(hook.command ?? "") || kitGateCommand.test(hook.command ?? ""));
+let hasKitHook = false;
+if (update && root) {
+  try {
+    const existing = JSON.parse(readFileSync(join(root, codexTarget), "utf8"));
+    hasKitHook = Object.entries(existing?.hooks ?? {}).some(([event, entries]) => Array.isArray(entries) &&
+      entries.some(entry => Array.isArray(entry?.hooks) && entry.hooks.some(hook => isKitHook(event, entry, hook))));
+  } catch { /* No or unreadable hooks: nothing to refresh; --codex-hook reports malformed JSON. */ }
+}
+const codexHook = args.includes("--codex-hook") || hasKitHook;
+if (!listTargets && codexHook) {
   // A plain install keeps an existing gate; a hook pinned to a different gate would never check anything.
   const existingGate = join(root, gateTarget);
   if (!update && !force && existsSync(existingGate) &&
@@ -76,12 +89,7 @@ if (!listTargets && args.includes("--codex-hook")) {
       if (!Array.isArray(entries) || entries.some(entry => !object(entry) || !Array.isArray(entry.hooks))) throw new Error(`invalid ${event} hook entries`);
       codexHooks.hooks[event] = entries.flatMap(entry => {
         // Only the kit's own Bash pre-hook: an old absolute command, or exactly the generated one.
-        const kit = event === "PreToolUse" && entry.matcher === "Bash";
-        const hooks = entry.hooks.filter(hook => {
-          const command = hook.command ?? "";
-          return !kit || hook.type !== "command" || !(/^python3\s+["']?(?:[A-Za-z]:)?[\\/].*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(command) ||
-            kitGateCommand.test(command));
-        });
+        const hooks = entry.hooks.filter(hook => !isKitHook(event, entry, hook));
         return hooks.length || entry.hooks.length === 0 ? [{ ...entry, hooks }] : [];
       });
     }
@@ -139,7 +147,7 @@ if (!update) {
 }
 place(join(plugin, "templates", "docs", "brief-template.md"), "docs/trust-before-scale/brief-template.md");
 if (listTargets) {
-  if (args.includes("--codex-hook")) targets.push(codexTarget);
+  if (codexHook) targets.push(codexTarget);
   console.log(JSON.stringify([...targets, versionTarget]));
   process.exit(0);
 }
