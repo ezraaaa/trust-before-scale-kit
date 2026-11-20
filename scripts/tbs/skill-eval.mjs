@@ -140,7 +140,7 @@ const moduleTrivia = String.raw`(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*)*`;
 const moduleClause = String.raw`(?:[\p{ID_Continue}$*,]|\{[^}]*\}|\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*)+?`;
 const relativeImport = new RegExp(
   String.raw`\b(?:(?:import|export)${moduleClause}\bfrom${moduleTrivia}|import${moduleTrivia}|(?:import|require)${moduleTrivia}\(${moduleTrivia})` +
-  String.raw`(?:"(\.{1,2}\/[^"\r\n]+)"|'(\.{1,2}\/[^'\r\n]+)')`, "gu",
+  String.raw`(?:"(\.{1,2}(?:\/[^"\r\n]*)?)"|'(\.{1,2}(?:\/[^'\r\n]*)?)')`, "gu",
 );
 
 function relativeModules(data) {
@@ -162,7 +162,8 @@ function gateInput(root, item, suiteName) {
     const file = pending.pop();
     const real = gateFile(root, file);
     const path = relative(root, file).split(sep).join("/");
-    if (!real || !tracked.has(path)) continue;
+    // A tracked symlinked directory lists the link and its target, not the path through it.
+    if (!real || !(tracked.has(path) || tracked.has(relative(root, real).split(sep).join("/")))) continue;
     if (files.has(path)) continue;
     const data = readFileSync(real);
     files.set(path, data);

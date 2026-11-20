@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1070,6 +1070,23 @@ test("fingerprint ignores untracked files and accepts ./ in gateInputs", () => i
   assert.equal(check(), 0, output.join("\n"));
   repo.put("scripts/extra/data.txt", "second");
   assert.equal(check(), 1);
+}));
+
+test("fingerprint follows require('.') and tracked symlinked directories", () => inRepo((repo) => {
+  repo.put("scripts/index.js", "module.exports = {};\n");
+  repo.put("scripts/rules/rules.mjs", "export {};\n");
+  symlinkSync("rules", join(repo.root, "scripts/current"), "dir");
+  repo.git("add", "scripts/index.js", "scripts/rules/rules.mjs", "scripts/current");
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: countGate + '// require(".")\nimport "./current/rules.mjs";\n',
+  });
+  assert.equal(check(), 0, output.join("\n"));
+  for (const path of ["scripts/index.js", "scripts/rules/rules.mjs"]) {
+    const before = readFileSync(join(repo.root, path), "utf8");
+    repo.put(path, before + "// changed\n");
+    assert.equal(check(), 1, path);
+    repo.put(path, before);
+  }
 }));
 
 test("plain and fresh eval checks detect entry script changes", () => inRepo((repo) => {
