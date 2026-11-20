@@ -12,7 +12,8 @@ description: "Run, read or extend the evals proving review skills still catch re
   A missing ID or a value starting with `-` prints usage and exits with status 2.
 - **Check:** `--check` fails when a skill changed, a case failed, the record is missing, its `evidenceRule` differs from 3, or its `settingsHash`
   is missing or differs from the effective review prompt/model, judge (including `TBS_JUDGE_MODEL`), repeats,
-  base or link directories; `--check --fresh` also fails a record older than `maxAgeDays`.
+  base or link directories. Suites with gate cases need a gate fingerprint that matches the current checkout.
+  `--check --fresh` also fails a record older than `maxAgeDays`.
 - **Add a case** after any miss: `evals/<suite>/cases/<id>/case.json` and `seed.patch`, a real diff against the
   current base that a person could plausibly ship. Neither the added lines, the branch name nor the message may say
   any whole word (case-insensitive) from: eval, seed, test, judge, rubric, score, candidate, benchmark,
@@ -22,6 +23,9 @@ description: "Run, read or extend the evals proving review skills still catch re
   A gate must pass on the clean base, in its own throwaway checkout, before its failure on the seed can count. Both runs
   share the repository's refs and config and the `linkDirs`: link only read-only dependencies (such as `node_modules`),
   and a gate must leave no state there (tags, branches, config, caches).
+  The fingerprint captures the gate command, its entry script and transitive literal relative imports before the
+  clean gate runs. List additional inputs in the case's optional `gateInputs` array, for example
+  `["scripts/lib/**", "package.json"]`. Use repository-relative Git glob patterns without `..`; only tracked files count.
 - **A seed that no longer applies** is rewritten against the current code. Never delete a case to make a suite green.
 - A failing case is a finding about the skill: fix the skill, rerun, and commit the new record with the skill change.
 - **Dry run:** `<suite> --dry-run` prints the effective judge and checks each patch with `git apply --check`

@@ -14,9 +14,9 @@
 //                                                         (--fresh also fails a record older than maxAgeDays)
 import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, posix, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep, win32 } from "node:path";
 import { ROOT, isMain, adoptionLevel, loadConfig, validateConfig } from "./config.mjs";
 
 // Whole words plus their plurals and inflections: 1.0.0 matched substrings, so "evals" and "seeded" must still count.
@@ -73,6 +73,10 @@ export function validateCase(value, id, patch, hidden = DEFAULT_HIDDEN) {
   if (!Array.isArray(value.mustName) || !value.mustName.length) fail("missing mustName");
   if (!validPath(value.file)) fail("invalid file");
   if (value.expect === "gate" && !value.gate) fail("a gate case needs its gate command");
+  if (value.gateInputs !== undefined && (!Array.isArray(value.gateInputs) ||
+      value.gateInputs.some(path => !validPath(path) || !path.trim() || win32.isAbsolute(path) || path.includes("\\") || path.includes("\0")))) {
+    fail("gateInputs must be an array of non-empty repository-relative globs without '..'");
+  }
   if (!patch?.trim()) fail("empty seed.patch");
   // Only what the change ADDS can give the test away; context lines are the project's own code.
   const added = patch.split("\n").filter((line) => line.startsWith("+") && !line.startsWith("+++")).join("\n");
@@ -115,20 +119,73 @@ export function hashFiles(files) {
 export const skillHash = (root, suite) => hashFiles(suite.skills.flatMap((path) => filesUnder(root, path)));
 export const casesHash = (cases) => hashFiles(cases.map((item) => ({ path: item.id, data: JSON.stringify(item) })));
 
-function gateInput(root, command) {
-  const hash = createHash("sha256").update(command);
+const moduleExtensions = [".mjs", ".js", ".cjs", ".ts"];
+
+function gateFile(root, file) {
+  const inside = path => {
+    const fromRoot = relative(root, path);
+    return !isAbsolute(fromRoot) && fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`);
+  };
+  if (!inside(file)) return;
+  try {
+    const real = realpathSync(file);
+    if (inside(real) && statSync(real).isFile()) return real;
+  } catch (error) {
+    if (!["ENOENT", "ENOTDIR", "ELOOP"].includes(error.code)) throw error;
+  }
+}
+
+// Match literal dependencies without loading the script or evaluating specifier expressions.
+const moduleTrivia = String.raw`(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*)*`;
+const moduleClause = String.raw`(?:[\p{ID_Continue}$*,]|\{[^}]*\}|\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*)+?`;
+const relativeImport = new RegExp(
+  String.raw`\b(?:(?:import|export)${moduleClause}\bfrom${moduleTrivia}|import${moduleTrivia}|(?:import|require)${moduleTrivia}\(${moduleTrivia})` +
+  String.raw`(?:"(\.{1,2}\/[^"\r\n]+)"|'(\.{1,2}\/[^'\r\n]+)')`, "gu",
+);
+
+function relativeModules(data) {
+  return Array.from(data.toString("utf8").matchAll(relativeImport), match => match[1] ?? match[2]);
+}
+
+function gateInput(root, item) {
+  root = realpathSync(root);
+  const files = new Map();
   // Resolve straightforward script invocations without interpreting shell syntax or PATH.
-  const script = /^(?:(?:node|bash|sh|python3?|ruby|perl)\s+)?(?:"([^"\n]+)"|'([^'\n]+)'|([\w./-]+))(?=\s|$)/.exec(command.trim());
+  const script = /^(?:(?:node|bash|sh|python3?|ruby|perl)\s+)?(?:"([^"\n]+)"|'([^'\n]+)'|([\w./-]+))(?=\s|$)/.exec(item.gate.trim());
   const path = script?.slice(1).find(Boolean);
-  if (path && !path.startsWith("-") && !/[\\$`]/.test(path)) {
-    const file = resolve(root, path);
-    try {
-      if (statSync(file).isFile()) hash.update("\0").update(readFileSync(file));
-    } catch (error) {
-      if (!["ENOENT", "ENOTDIR"].includes(error.code)) throw error;
+  const pending = path && !path.startsWith("-") && !/[\\$`]/.test(path) ? [resolve(root, path)] : [];
+  const scanned = new Set();
+  while (pending.length) {
+    const file = pending.pop();
+    const real = gateFile(root, file);
+    if (!real) continue;
+    const path = relative(root, file);
+    if (files.has(path)) continue;
+    const data = readFileSync(real);
+    files.set(path, data);
+    if (scanned.has(real)) continue;
+    scanned.add(real);
+    for (const specifier of relativeModules(data)) {
+      const literal = resolve(dirname(real), specifier);
+      const candidates = [literal, ...moduleExtensions.map(ext => literal + ext),
+        ...moduleExtensions.map(ext => join(literal, "index" + ext))];
+      const dependency = candidates.find(candidate => gateFile(root, candidate));
+      if (dependency) pending.push(dependency);
     }
   }
-  return hash.digest("hex");
+  if (item.gateInputs?.length) {
+    // Git's glob pathspecs provide *, ? and ** on both supported Node versions. Tracked files only:
+    // untracked or ignored files exist in the checkout but never in the clean base, so they would
+    // make every record read stale.
+    const patterns = item.gateInputs.map(pattern => `:(top,glob)${pattern}`);
+    const paths = must(sh("git", ["ls-files", "-z", "--cached", "--", ...patterns], { cwd: root }), "list gate inputs");
+    for (const path of paths.split("\0").filter(Boolean)) {
+      if (files.has(path)) continue;
+      const real = gateFile(root, resolve(root, path));
+      if (real) files.set(path, readFileSync(real));
+    }
+  }
+  return hashFiles([{ path: "", data: item.gate }, ...Array.from(files, ([path, data]) => ({ path, data }))]);
 }
 
 const gateFingerprint = (cases, input) => hashFiles(cases.filter(item => item.expect === "gate")
@@ -274,7 +331,7 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
   const scratch = mkdtempSync(join(tmpdir(), "work-"));
   const worktree = join(scratch, "tree");
   const branch = `${item.branch ?? `feat/${item.id}`}-${randomBytes(4).toString("hex")}`;
-  let added = false; let outcome;
+  let added = false; let outcome; let input;
   const exits = item.expect === "gate" ? { baseExit: null, seededExit: null } : {};
   const gateOptions = { cwd: worktree };
   try {
@@ -292,6 +349,7 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
       let clean;
       try {
         linkDirectories(root, baseTree, suite.linkDirs ?? []);
+        input = gateInput(baseTree, item);
         clean = run("sh", ["-c", item.gate], { cwd: baseTree });
       } finally {
         // Targeted cleanup only; never prune other worktrees.
@@ -304,7 +362,7 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
         const evidence = exits.baseExit === null || clean.signal || clean.error
           ? "the gate did not complete on the clean base"
           : `the gate already fails on the clean base (exit ${exits.baseExit})`;
-        return { id: item.id, expect: item.expect, pass: false, evidence, ...exits };
+        return { id: item.id, expect: item.expect, pass: false, evidence, gateInput: input, ...exits };
       }
       must(run("git", ["worktree", "add", "-q", "-B", branch, worktree, base], { cwd: root }), "worktree add");
       added = true;
@@ -336,10 +394,9 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
     const linkRoot = item.expect === "gate" ? root : runLinks;
     linkDirectories(linkRoot, worktree, suite.linkDirs ?? []);
     if (item.expect === "gate") {
-      const input = gateInput(worktree, item.gate);
       const seeded = run("sh", ["-c", item.gate], gateOptions);
       exits.seededExit = seeded.status ?? null;
-      outcome = { ...gated(seeded, item.file), gateInput: input };
+      outcome = gated(seeded, item.file);
     } else {
       // Review the skill as it is now, not as it was on the base branch.
       for (const path of suite.skills) { rmSync(join(worktree, path), { recursive: true, force: true }); cpSync(join(root, path), join(worktree, path), { recursive: true }); }
@@ -374,7 +431,7 @@ ${JSON.stringify({ rule: item.rule, file: item.file, mustName: item.mustName, re
     if (item.expect === "gate") run("git", ["branch", "-D", branch], { cwd: root });
     rmSync(scratch, { recursive: true, force: true });
   }
-  return { id: item.id, expect: item.expect, ...outcome, ...exits };
+  return { id: item.id, expect: item.expect, ...outcome, ...exits, ...(input === undefined ? {} : { gateInput: input }) };
 }
 
 export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, log = console.log } = {}) {
@@ -406,9 +463,10 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
       if (record && record.evidenceRule !== EVIDENCE_RULE) {
         problems.unshift("record predates evidence rule 3 (quote-only matching): run it again");
       }
-      if (record && record.gateFingerprint === undefined) log(`[${suite.name}] record predates the gate fingerprint`);
-      if (fresh && record?.gateFingerprint !== undefined &&
-          record.gateFingerprint !== gateFingerprint(cases, item => gateInput(root, item.gate))) {
+      if (record && record.gateFingerprint === undefined && cases.some(item => item.expect === "gate")) {
+        problems.push("record has no gate fingerprint: run it again");
+      } else if (record?.gateFingerprint !== undefined &&
+          record.gateFingerprint !== gateFingerprint(cases, item => gateInput(root, item))) {
         problems.push("the gate inputs changed since the last eval: run it again");
       }
       for (const problem of problems) log(`[${suite.name}] ${problem}  (node scripts/tbs/skill-eval.mjs ${suite.name})`);
@@ -458,7 +516,7 @@ export function main(argv, { root = ROOT, config = loadConfig(root), run = sh, l
       if (item.expect === "gate") {
         const inputs = new Set(runs.filter(result => result.gateInput !== undefined).map(result => result.gateInput));
         if (inputs.size > 1) throw new Error(`${item.id}: gate inputs changed between runs`);
-        gateInputs.set(item.id, inputs.values().next().value ?? gateInput(root, item.gate));
+        gateInputs.set(item.id, inputs.values().next().value ?? gateInput(root, item));
       }
       const passes = runs.filter((result) => result.pass).length;
       const recorded = (key) => repeats === 1 ? runs[0][key] : runs.map((result) => result[key]);

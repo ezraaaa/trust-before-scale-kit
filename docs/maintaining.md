@@ -135,9 +135,8 @@ flight, the owner list and the next work; this section keeps only durable facts.
 
 ## Backlog
 
-- Expand gate fingerprinting to script dependencies and package-manager scripts. Resolving those
-  inputs would need command-specific logic. This release fingerprints the command and the main
-  script when it can resolve that file directly.
+- Expand gate fingerprinting to package-manager scripts such as `npm test`, commands such as `make`,
+  and dynamic imports with computed paths.
 - Update the optional project CI template separately. This release updates the kit's own
   workflows, so existing project workflow files retain their current runner requirements.
 - Next patch (1.7.3), owner deferred on 2026-11-18. Each item needs a test that fails first:
@@ -145,5 +144,3 @@ flight, the owner list and the next work; this section keeps only durable facts.
     base, and stop if the installed kit is not newer (this prevents a downgrade).
   - Without `gitflow.*` config, `--branch` uses `chore/`. Decide a default the git-flow projects accept, or require
     `--branch-name`.
-  - Gate fingerprint: `skill-eval --check --fresh` compares the seeded script with the unseeded checkout. A seed that
-    edits its own gate script reads stale right after passing. Fingerprint the same inputs on both paths.
