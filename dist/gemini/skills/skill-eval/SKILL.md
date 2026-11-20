@@ -9,6 +9,7 @@ description: "Run, read or extend the evals proving review skills still catch re
   It writes `evals/<suite>/result.json`; commit it. Each review case runs the review headless (the configured suite `reviewer`, default `claude`) and a
   configured judge (default `codex`) on a different model, so a full run costs real tokens: run it when the skill changes and weekly.
 - **One case:** `--case <id>` prints the result and never writes the record.
+  A missing ID or a value starting with `-` prints usage and exits with status 2.
 - **Check:** `--check` fails when a skill changed, a case failed, the record is missing, its `evidenceRule` differs from 3, or its `settingsHash`
   is missing or differs from the effective review prompt/model, judge (including `TBS_JUDGE_MODEL`), repeats,
   base or link directories; `--check --fresh` also fails a record older than `maxAgeDays`.
@@ -17,7 +18,7 @@ description: "Run, read or extend the evals proving review skills still catch re
   any whole word (case-insensitive) from: eval, seed, test, judge, rubric, score, candidate, benchmark,
   planted, fixture. Unchanged context is excluded; identifiers such as `testCount` are allowed. `expect` is
   `gate` when a command already catches it (name the command), else `review` with `rule`, `file` and `mustName` tokens. The evidence must quote the review
-  and contain the file basename and at least one `mustName` token. Tokens match as literal, case-insensitive substrings.
+  and contain the file basename and at least one `mustName` token. Both match as literal, case-insensitive substrings.
 - **A seed that no longer applies** is rewritten against the current code. Never delete a case to make a suite green.
 - A failing case is a finding about the skill: fix the skill, rerun, and commit the new record with the skill change.
 - **Dry run:** `<suite> --dry-run` prints the effective judge and checks each patch with `git apply --check`
