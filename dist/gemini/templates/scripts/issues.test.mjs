@@ -158,6 +158,16 @@ test('ignored files the base run writes do not make the seeded run fail (#21)', 
  assert.equal(result.pass, false);
 }));
 
+test('a nested git repo the base run creates does not stop the seeded run (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if grep -q 'count = 2' src/x.ts; then printf 'src/x.ts incorrect\\n'; exit 1; fi; git init -q fixture";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ assert.equal(JSON.parse(readFileSync(resultPath)).cases[0].pass, true);
+}));
+
 test('new eval records use rule 3 and default to two repeats', () => temporary(root => {
  const { config, resultPath } = evalFixture(root, 'gate');
  assert.equal(evaluate(['routine'], { root, config, log: () => {} }), 0);
