@@ -139,8 +139,3 @@ flight, the owner list and the next work; this section keeps only durable facts.
   and dynamic imports with computed paths.
 - Update the optional project CI template separately. This release updates the kit's own
   workflows, so existing project workflow files retain their current runner requirements.
-- Next patch (1.7.3), owner deferred on 2026-11-18. Each item needs a test that fails first:
-  - `update.mjs --branch` compares versions on the starting checkout. Read `scripts/tbs/VERSION` from the fetched
-    base, and stop if the installed kit is not newer (this prevents a downgrade).
-  - Without `gitflow.*` config, `--branch` uses `chore/`. Decide a default the git-flow projects accept, or require
-    `--branch-name`.

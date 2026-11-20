@@ -19,6 +19,7 @@
 - Skill eval fingerprints clean-base gate scripts, their relative dependencies and declared extra inputs, and `--check --fresh` fails on a changed or missing fingerprint; plain `--check` (CI) does not compare them (#14).
 - Skill eval judge excerpts must state the fault and match `mustName` terms as whole tokens (#16). Every project must rerun its eval suites after updating.
 - Codex project hooks use the vendored merge gate relative to the checkout root, pinned to its SHA-256, and allow commands with a note if the script is missing or changed (#18). Trust the hook again in Codex `/hooks` after updating.
+- `update.mjs --branch` reads `scripts/tbs/VERSION` from the fetched base and creates no branch when the base already has the installed kit version or newer (no downgrade). Without git-flow config it names the branch `feature/…` when a `develop` branch exists, else `chore/…`.
 
 ## 1.7.2
 
