@@ -10,7 +10,7 @@ description: "Run, read or extend the evals proving review skills still catch re
   configured judge (default `codex`) on a different model, so a full run costs real tokens: run it when the skill changes and weekly.
 - **One case:** `--case <id>` prints the result and never writes the record.
   A missing ID or a value starting with `-` prints usage and exits with status 2.
-- **Check:** `--check` fails when a skill changed, a case failed, the record is missing, its `evidenceRule` differs from 3, or its `settingsHash`
+- **Check:** `--check` fails when a skill changed, a case failed, the record is missing, its `evidenceRule` differs from 4, or its `settingsHash`
   is missing or differs from the effective review prompt/model, judge (including `TBS_JUDGE_MODEL`), repeats,
   base or link directories. `--check --fresh` (lanes, self-merge) also fails a record older than `maxAgeDays`, and,
   for suites with gate cases, one whose gate fingerprint is missing or no longer matches the checkout. Plain `--check`
@@ -20,7 +20,7 @@ description: "Run, read or extend the evals proving review skills still catch re
   any whole word (case-insensitive) from: eval, seed, test, judge, rubric, score, candidate, benchmark,
   planted, fixture. Unchanged context is excluded; identifiers such as `testCount` are allowed. `expect` is
   `gate` when a command already catches it (name the command), else `review` with `rule`, `file` and `mustName` tokens. The evidence must quote the review
-  and contain the file basename and at least one `mustName` token. Both match as literal, case-insensitive substrings.
+  and state the fault at that file. It must contain the file basename as a case-insensitive substring and at least one literal, case-insensitive whole `mustName` token.
   A gate must pass on the clean base, in its own throwaway checkout, before its failure on the seed can count. Both runs
   share the repository's refs and config and the `linkDirs`: link only read-only dependencies (such as `node_modules`),
   and a gate must leave no state there (tags, branches, config, caches).

@@ -82,6 +82,22 @@ test('judged evidence must name basename and a required concept',()=>{
  assert.equal(judged(answer('bad'),'bad',item).pass,false);
  assert.equal(judged(answer('auth.js permission missing'),'auth.js permission missing',item).pass,true);
 });
+for (const [description, term, passing, failing] of [
+ ['already does not satisfy read', 'read', 'AUTH.JS lacks READ access', ['auth.js already has access']],
+ ['read must be a whole word', 'read', 'auth.js lacks read access', ['auth.js reads incorrectly', 'auth.js lacks préread', 'auth.js lacks read_2', 'auth.js lacks read٢']],
+ ['off-by-one matches as a token', 'off-by-one', 'auth.js has an (off-by-one) error', ['auth.js has an off-by-ones error']],
+ ['/terms matches as a token', '/terms', 'auth.js fails at (/terms)', ['auth.js fails at /terms2']],
+ ['/terms matches inside a path', '/terms', 'auth.js fails at app/terms', ['auth.js fails at app/termsx']],
+ ['regex metacharacters are literal', 'a.b', 'auth.js fails at a.b', ['auth.js fails at axb', 'auth.js fails at a.b2']],
+]) {
+ test(description, () => {
+   const item = { file: 'src/auth.js', mustName: [term] };
+   const score = evidence => judged(JSON.stringify({ caught: true, evidence }), evidence, item).pass;
+   assert.equal(score(passing), true, passing);
+   for (const evidence of failing) assert.equal(score(evidence), false, evidence);
+ });
+}
+
 test('worktrees share hook skips, migrate legacy logs once and audit acknowledgement offline',()=>temporary(root=>{
  execFileSync('git',['commit','--allow-empty','-qm','initial'],{cwd:root});
  const tree=join(root,'linked');
@@ -115,10 +131,10 @@ function evalFixture(root, expect) {
  return { suite, config: { level: 4, evals: { suites: [suite] } }, resultPath: join(root, 'evals/routine/result.json') };
 }
 
-test('check rejects records predating evidence rule 3', () => temporary(root => {
+test('check rejects records predating evidence rule 4', () => temporary(root => {
  const { suite, config, resultPath } = evalFixture(root, 'gate');
- for (const evidenceRule of [2, undefined]) {
-   const strict = evidenceRule === 2;
+ for (const evidenceRule of [3, 2, undefined]) {
+   const strict = evidenceRule !== undefined;
    const repeats = strict ? 2 : 1;
    const record = {
      evidenceRule, date: new Date().toISOString(), skillHash: skillHash(root, suite),
@@ -128,8 +144,9 @@ test('check rejects records predating evidence rule 3', () => temporary(root => 
    writeFileSync(resultPath, JSON.stringify(record));
    const lines = [];
    const status = evaluate(['--check'], { root, config, log: line => lines.push(line) });
-   assert.match(lines.join('\n'), /record predates evidence rule 3 \(quote-only matching\): run it again/);
+   assert.match(lines.join('\n'), /record predates evidence rule 4 \(whole-word mustName\): run it again/);
    assert.equal(status, 1);
+   assert.equal(lines.length, 1, lines.join('\n'));
  }
 }));
 
@@ -188,19 +205,24 @@ test('a commit the base run makes does not reach the seeded run (#21)', () => te
  assert.equal(JSON.parse(readFileSync(resultPath)).cases[0].pass, false);
 }));
 
-test('new eval records use rule 3 and default to two repeats', () => temporary(root => {
+test('new eval records use rule 4 and default to two repeats', () => temporary(root => {
  const { config, resultPath } = evalFixture(root, 'gate');
  assert.equal(evaluate(['routine'], { root, config, log: () => {} }), 0);
  const record = JSON.parse(readFileSync(resultPath));
- assert.equal(record.evidenceRule, 3);
+ assert.equal(record.evidenceRule, 4);
  assert.equal(record.cases[0].repeats, 2);
  assert.equal(evaluate(['--check'], { root, config, log: () => {} }), 0);
 }));
 
-function runReview(root, caught) {
+function runReview(root, caught, { mustName, log = () => {}, dryRun = false } = {}) {
  const { suite, config, resultPath } = evalFixture(root, 'review');
  Object.assign(suite, { reviewer: 'cursor-agent', judge: 'gemini', repeats: 1, reviewPrompt: 'Review {branch}' });
  const evidence = 'x.ts sets count to two.';
+ if (mustName) {
+   const casePath = join(root, 'evals/routine/cases/count/case.json');
+   const item = JSON.parse(readFileSync(casePath));
+   writeFileSync(casePath, JSON.stringify({ ...item, mustName }));
+ }
  const prompts = [];
  const run = (command, args, options) => {
    if (command === 'cursor-agent') return { status: 0, stdout: evidence };
@@ -210,17 +232,36 @@ function runReview(root, caught) {
    }
    return spawnSync(command, args, { ...options, encoding: 'utf8' });
  };
- const status = evaluate(['routine'], { root, config, run, log: () => {} });
+ const status = evaluate(dryRun ? ['routine', '--dry-run'] : ['routine'], { root, config, run, log });
+ if (dryRun) return { status, prompts };
  return { status, prompts, result: JSON.parse(readFileSync(resultPath)).cases[0] };
 }
 
-test('judge prompt asks for at least one term and a basename plus one term passes', () => temporary(root => {
+test('judge prompt asks the excerpt itself to state the fault and explains matching', () => temporary(root => {
  const { status, prompts, result } = runReview(root, true);
  assert.equal(status, 0, result.evidence);
  assert.equal(result.pass, true);
  assert.equal(prompts.length, 1);
- assert.match(prompts[0], /at least one of the mustName terms/);
+ assert.match(prompts[0], /excerpt itself must state the fault/);
+ assert.match(prompts[0], /basename.*case-insensitive substring/);
+ assert.match(prompts[0], /mustName.*case-insensitive whole word/);
 }));
+
+for (const dryRun of [false, true]) {
+ test(`short and common mustName terms warn during ${dryRun ? 'dry-run' : 'a run'}`, () => temporary(root => {
+   const lines = [];
+   const { status, result, prompts } = runReview(root, true, {
+     mustName: ['COUNT', 'ts', 'READ'], log: line => lines.push(line), dryRun,
+   });
+   assert.equal(status, 0, lines.join('\n'));
+   for (const term of ['ts', 'READ']) {
+     assert.ok(lines.some(line => line.includes('Warning') && line.includes('[routine]') &&
+       line.includes('count') && line.includes(JSON.stringify(term))), lines.join('\n'));
+   }
+   assert.equal(prompts.length, dryRun ? 0 : 1);
+   if (!dryRun) assert.equal(result.pass, true);
+ }));
+}
 
 test('failed review records a repo-relative path to the kept review', () => temporary(root => {
  const { status, prompts, result } = runReview(root, false);
