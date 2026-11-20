@@ -298,7 +298,7 @@ export function runCase(root, base, suite, item, run = sh, baseBranch = "develop
       // Keep the transient links, and anything the base run wrote, out of the seed commit.
       for (const path of links) rmSync(path, { force: true });
       must(run("git", ["reset", "-q", "--hard"], { cwd: worktree }), "reset after the base run");
-      must(run("git", ["clean", "-qfd"], { cwd: worktree }), "clean after the base run");
+      must(run("git", ["clean", "-qfdx"], { cwd: worktree }), "clean after the base run");
     } else {
       const options = { cwd: root, env: { ...process.env, GIT_INDEX_FILE: join(scratch, "index"),
         GIT_AUTHOR_NAME: "Snapshot", GIT_AUTHOR_EMAIL: "snapshot@example.invalid",

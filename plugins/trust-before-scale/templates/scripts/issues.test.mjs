@@ -146,6 +146,18 @@ test('a gate that rewrites files on the clean base does not leak into the seeded
  assert.deepEqual(result.seededExit, [1, 1]);
 }));
 
+test('ignored files the base run writes do not make the seeded run fail (#21)', () => temporary(root => {
+ const { config, resultPath } = evalFixture(root, 'gate');
+ writeFileSync(join(root, '.git/info/exclude'), 'cache.txt\n');
+ const casePath = join(root, 'evals/routine/cases/count/case.json');
+ const item = JSON.parse(readFileSync(casePath));
+ item.gate = "if [ -f cache.txt ]; then printf 'src/x.ts incorrect\\n'; exit 1; fi; touch cache.txt";
+ writeFileSync(casePath, JSON.stringify(item));
+ evaluate(['routine'], { root, config, log: () => {} });
+ const result = JSON.parse(readFileSync(resultPath)).cases[0];
+ assert.equal(result.pass, false);
+}));
+
 test('new eval records use rule 3 and default to two repeats', () => temporary(root => {
  const { config, resultPath } = evalFixture(root, 'gate');
  assert.equal(evaluate(['routine'], { root, config, log: () => {} }), 0);
