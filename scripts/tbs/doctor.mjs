@@ -3,6 +3,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { kitGateDigest } from "./codex-hook.mjs";
 import { execFileSync } from "node:child_process";
 import { ROOT, isMain, loadConfig, configPath, validateConfig, adoptionLevel } from "./config.mjs";
 import { outcomes } from "./learn.mjs";
@@ -54,12 +55,12 @@ export function main(argv = [], { root = ROOT, config, log = console.log,
         entry.hooks?.some(hook => {
           if (hook.type !== "command") return false;
           const command = hook.command ?? "";
-          if (/^if f="\$\(git rev-parse --show-toplevel 2>\/dev\/null\)\/scripts\/tbs\/merge-gate\.py" && /.test(command)) {
+          const pinned = kitGateDigest(command);
+          if (pinned) {
             // The hook runs the gate only when its pinned SHA-256 matches; a changed gate is not enforced.
             const gate = join(root, "scripts/tbs/merge-gate.py");
-            const pinned = /"([0-9a-f]{64})"/.exec(command)?.[1];
             const digest = (file) => createHash("sha256").update(readFileSync(file).toString("latin1").replaceAll("\r\n", "\n"), "latin1").digest("hex");
-            return existsSync(gate) && !!pinned && digest(gate) === pinned;
+            return existsSync(gate) && digest(gate) === pinned;
           }
           const path = /"([^"]*hooks\/merge-gate\.py)"/.exec(command)?.[1]?.replace(/\\(.)/g, "$1");
           return !!path && existsSync(path);

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { gateCommandFor } from './codex-hook.mjs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -173,7 +174,8 @@ test('passes --codex-hook on request or when the existing Bash hook belongs to t
     ['echo unrelated', [], ['--update']],
     ['echo unrelated', ['--codex-hook'], ['--update', '--codex-hook']],
     ['python3 "/old kit/hooks/merge-gate.py"', [], ['--update', '--codex-hook']],
-    ['if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ]; then exec python3 "$f"; fi', [], ['--update', '--codex-hook']],
+    ['if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ]; then exec python3 "$f"; fi', [], ['--update']],
+    [gateCommandFor('a'.repeat(64)), [], ['--update', '--codex-hook']],
   ]) {
     put('.codex/hooks.json', JSON.stringify({ hooks: { PreToolUse: [{
       matcher: 'Bash', hooks: [{ type: 'command', command }],

@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, cpSync, existsSync, renameSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { gateCommandFor, kitGateDigest } from '../templates/scripts/codex-hook.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -111,6 +113,13 @@ test('adding the hook over a different existing gate stops and points to --updat
   assert.equal(result.status, 1);
   assert.match(result.stderr, /--update --codex-hook/);
   assert.equal(existsSync(join(root, '.codex/hooks.json')), false);
+}));
+test('tbs-init writes exactly the command codex-hook.mjs recognises, pinned to the gate digest', () => fixture(root => {
+  install(root);
+  const command = read(root).hooks.PreToolUse.at(-1).hooks[0].command;
+  const digest = createHash('sha256').update(readFileSync(join(plugin, 'hooks/merge-gate.py'), 'latin1').replaceAll('\r\n', '\n'), 'latin1').digest('hex');
+  assert.equal(kitGateDigest(command), digest);
+  assert.equal(command, gateCommandFor(digest));
 }));
 test('an update replaces a hook pinned to an older gate digest', () => fixture(root => {
   install(root);
