@@ -1095,6 +1095,23 @@ test("fingerprint follows require('.') and tracked symlinked directories", () =>
   }
 }));
 
+test("import scanning stays fast on many adjacent comments", { timeout: 10_000 }, () => inRepo((repo) => {
+  const comments = "/* a */".repeat(40) + "// note\n".repeat(5);
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: `const text = ${JSON.stringify(`import x ${comments} from "pkg";`)};\n` + countGate,
+  });
+  assert.equal(check(), 0, output.join("\n"));
+}));
+
+test("an untracked symlink alias of a tracked module is not hashed", () => inRepo((repo) => {
+  const { check, output } = fingerprintFixture(repo, {
+    [gateScript]: 'import "./lib.mjs";\n' + countGate,
+    "scripts/lib.mjs": "export {};\n",
+  });
+  symlinkSync("lib.mjs", join(repo.root, "scripts/lib.mjs.js"));
+  assert.equal(check(), 0, output.join("\n"));
+}));
+
 test("fresh eval checks detect entry script changes", () => inRepo((repo) => {
   repo.put("linked/expected.txt", "const count = 1;\n");
   const { check, output, record } = fingerprintFixture(repo, {

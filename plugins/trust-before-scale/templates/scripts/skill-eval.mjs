@@ -136,8 +136,12 @@ function gateFile(root, file) {
 }
 
 // Match literal dependencies without loading the script or evaluating specifier expressions.
-const moduleTrivia = String.raw`(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*)*`;
-const moduleClause = String.raw`(?:[\p{ID_Continue}$*,]|\{[^}]*\}|\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*)+?`;
+// Each comment matches exactly one way (a block comment cannot contain "*/", a line comment runs to the
+// line end), so the repetitions below cannot backtrack exponentially.
+const blockComment = String.raw`\/\*(?:[^*]|\*(?!\/))*\*\/`;
+const lineComment = String.raw`\/\/[^\r\n]*(?![^\r\n])`;
+const moduleTrivia = String.raw`(?:\s|${blockComment}|${lineComment})*`;
+const moduleClause = String.raw`(?:[\p{ID_Continue}$*,]|\{[^}]*\}|\s|${blockComment}|${lineComment})+?`;
 const relativeImport = new RegExp(
   String.raw`\b(?:(?:import|export)${moduleClause}\bfrom${moduleTrivia}|import${moduleTrivia}|(?:import|require)${moduleTrivia}\(${moduleTrivia})` +
   String.raw`(?:"(\.{1,2}(?:\/[^"\r\n]*)?)"|'(\.{1,2}(?:\/[^'\r\n]*)?)')`, "gu",
@@ -162,8 +166,13 @@ function gateInput(root, item, suiteName) {
     const file = pending.pop();
     const real = gateFile(root, file);
     const path = relative(root, file).split(sep).join("/");
-    // A tracked symlinked directory lists the link and its target, not the path through it.
-    if (!real || !(tracked.has(path) || tracked.has(relative(root, real).split(sep).join("/")))) continue;
+    // A tracked symlinked directory lists the link and its target, not the path through it: follow an
+    // alias only when the link itself is tracked, so the clean worktree sees the same path.
+    if (!real || !(tracked.has(path) || (tracked.has(relative(root, real).split(sep).join("/")) &&
+        path.split("/").some((_, index, parts) => {
+          const prefix = parts.slice(0, index + 1).join("/");
+          return tracked.has(prefix) && lstatSync(join(root, prefix)).isSymbolicLink();
+        })))) continue;
     if (files.has(path)) continue;
     const data = readFileSync(real);
     files.set(path, data);
