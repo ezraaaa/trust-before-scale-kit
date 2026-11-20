@@ -137,6 +137,24 @@ test('a plain --update refreshes an existing kit hook, and adds none where there
     assert.equal(existsSync(join(other, '.codex/hooks.json')), false);
   } finally { rmSync(other, { recursive: true, force: true }); }
 }));
+test('--force refreshes a pinned kit hook; a plain --update leaves an unrelated absolute merge-gate.py hook alone', () => fixture(root => {
+  install(root);
+  const hooks = read(root);
+  hooks.hooks.PreToolUse.at(-1).hooks[0].command = gateCommandFor('0'.repeat(64));
+  writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify(hooks));
+  install(root, ['generic', '--force']);
+  assert.notEqual(kitGateDigest(read(root).hooks.PreToolUse.at(-1).hooks[0].command), '0'.repeat(64));
+  const other = mkdtempSync(join(tmpdir(), 'tbs-codex-policy-'));
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: other });
+    install(other, ['generic']);
+    const policy = { hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'python3 "/opt/policy/hooks/merge-gate.py"' }] }] } };
+    mkdirSync(join(other, '.codex'));
+    writeFileSync(join(other, '.codex/hooks.json'), JSON.stringify(policy));
+    install(other, ['--update']);
+    assert.deepEqual(read(other), policy);
+  } finally { rmSync(other, { recursive: true, force: true }); }
+}));
 test('an update replaces a hook pinned to an older gate digest', () => fixture(root => {
   install(root);
   const hooks = read(root);

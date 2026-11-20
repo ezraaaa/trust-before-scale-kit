@@ -58,16 +58,18 @@ const gateRunner = (digest) => `python3 -I -c 'import hashlib,sys;p=sys.argv[1];
 const gateCommandFor = (digest) => `if ${gateLookup} && [ -f "$f" ]; then exec ${gateRunner(digest)}; fi; echo "${gateNote(digest)}" >&2`;
 const gateCommand = gateCommandFor(gateDigest);
 const kitGateCommand = new RegExp(`^${gateCommandFor("DIGEST").replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll("DIGEST", "[0-9a-f]{64}")}$`);
-// An update refreshes an existing kit hook (its digest follows the new gate) without opting projects
-// that have none into Codex hooks.
+// An update or forced reinstall replaces the gate, so it refreshes an existing pinned kit hook (its
+// digest follows the new gate) without opting projects that have none into Codex hooks. Only the exact
+// pinned command counts here: an old absolute-path hook is replaced only on an explicit --codex-hook.
 const isKitHook = (event, entry, hook) => event === "PreToolUse" && entry.matcher === "Bash" && hook?.type === "command" &&
   (/^python3\s+["']?(?:[A-Za-z]:)?[\\/].*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(hook.command ?? "") || kitGateCommand.test(hook.command ?? ""));
 let hasKitHook = false;
-if (update && root) {
+if ((update || force) && root) {
   try {
     const existing = JSON.parse(readFileSync(join(root, codexTarget), "utf8"));
     hasKitHook = Object.entries(existing?.hooks ?? {}).some(([event, entries]) => Array.isArray(entries) &&
-      entries.some(entry => Array.isArray(entry?.hooks) && entry.hooks.some(hook => isKitHook(event, entry, hook))));
+      entries.some(entry => event === "PreToolUse" && entry?.matcher === "Bash" && Array.isArray(entry?.hooks) &&
+        entry.hooks.some(hook => hook?.type === "command" && kitGateCommand.test(hook.command ?? ""))));
   } catch { /* No or unreadable hooks: nothing to refresh; --codex-hook reports malformed JSON. */ }
 }
 const codexHook = args.includes("--codex-hook") || hasKitHook;
