@@ -327,6 +327,23 @@ test('--branch updates an older fetched base even when the starting checkout is 
   assert.deepEqual(installed().args, ['--update']);
 });
 
+test('--branch refuses a fetched base whose kit version is missing or malformed', t => {
+  for (const content of [null, 'not-a-version\n']) {
+    const { cache, git, put, commit, run, untouched, addOrigin, root } = fixture(t);
+    cache('1.10.0');
+    addOrigin();
+    if (content === null) git('rm', '-q', versionPath); else put(versionPath, content);
+    commit();
+    git('push', '-q', 'origin', 'main');
+    git('switch', '-q', '-c', 'work', 'HEAD~1');
+    const result = run(['--branch']);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stderr, /no valid scripts\/tbs\/VERSION/);
+    assert.equal(git('branch', '--show-current'), 'work');
+    untouched();
+  }
+});
+
 test('refuses an update branch when origin is missing or cannot be fetched', t => {
   const { cache, git, run, untouched } = fixture(t);
   cache('1.10.0');

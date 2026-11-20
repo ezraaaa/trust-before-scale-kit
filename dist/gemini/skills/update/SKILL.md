@@ -13,7 +13,7 @@ description: "Update the vendored kit from the installed plugin. Use for: update
    branch, in that order. The branch uses the Git Flow feature prefix when configured, `feature/`
    when a `develop` branch exists, and `chore/` otherwise. Pass `--branch-name <name>` if the user
    requests a specific name. If the fetched base already has the installed kit version or newer, it
-   creates no branch. For an update in place on an existing feature branch, omit `--branch`. If the
+   creates no branch; a base without a valid `scripts/tbs/VERSION` stops it. For an update in place on an existing feature branch, omit `--branch`. If the
    kit is current, stop.
 2. Pass `--codex-hook` if the user requests it. The updater also refreshes an existing kit Bash
    merge-gate hook and runs doctor after updating.

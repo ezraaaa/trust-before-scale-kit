@@ -218,17 +218,22 @@ function main(args) {
     if (optionalGit('show-ref', '--verify', '--quiet', baseRef) === undefined) {
       throw new Error(`Integration branch origin/${integration} was not found after fetching origin.`);
     }
-    // The branch starts from the fetched base, not this checkout: never update a base that already
-    // has this kit version or a newer one (that would be a downgrade).
-    const baseFile = spawnSync('git', ['show', `${baseRef}:scripts/tbs/VERSION`], { cwd: root, env, encoding: 'utf8' });
+    // The branch starts from the fetched base, not this checkout: never update a base that already has
+    // this kit version or a newer one (a downgrade), nor one whose version cannot be read. Pin the commit
+    // once, so a concurrent fetch cannot move the branch point after the check.
+    const baseCommit = git(root, 'rev-parse', '--verify', `${baseRef}^{commit}`);
+    const baseFile = spawnSync('git', ['show', `${baseCommit}:scripts/tbs/VERSION`], { cwd: root, env, encoding: 'utf8' });
     const baseVersion = baseFile.status === 0 ? baseFile.stdout.trim() : undefined;
-    if (baseVersion !== undefined && validVersion(baseVersion) && !newer(selected.version, baseVersion)) {
+    if (!baseVersion || !validVersion(baseVersion)) {
+      throw new Error(`origin/${integration} has no valid scripts/tbs/VERSION; cannot tell whether this would downgrade it. Update in place on a feature branch (omit --branch).`);
+    }
+    if (!newer(selected.version, baseVersion)) {
       console.log(`origin/${integration} already has ${baseVersion} (newest installed: ${selected.version}); no update branch created.`);
       return 0;
     }
     nextBranch = branchFor();
     git(root, 'check-ref-format', '--branch', nextBranch);
-    git(root, 'switch', '--no-overwrite-ignore', '--no-track', '-c', nextBranch, baseRef);
+    git(root, 'switch', '--no-overwrite-ignore', '--no-track', '-c', nextBranch, baseCommit);
     installerArgs = checkTargets();
   }
   const installerStatus = runNode(root, selected.installer, ...installerArgs);
