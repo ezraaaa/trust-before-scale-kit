@@ -25,7 +25,15 @@ Codex CLI 0.166.0, checked 17 Nov 2026 in a project with a kit config:
 From the project's Git checkout, run `node "<plugin-root>/bin/tbs-init" generic --codex-hook`.
 For an existing install, run `node "<plugin-root>/bin/tbs-init" --update --codex-hook`.
 This merges `.codex/hooks.json`, preserving unrelated hooks and replacing any earlier kit hook
-with the current absolute plugin path. Malformed hook JSON stops installation without overwriting it.
+with a command that locates `scripts/tbs/merge-gate.py` relative to the Git checkout root. The
+installer copies the gate there so the committed hook works on teammates' machines and after a
+plugin move. The command pins the gate's SHA-256 (line endings normalised): one isolated Python
+process reads the vendored script once, checks it and runs those same bytes, so a branch that edits
+the gate, or adds a local module, cannot run new code under trust you already gave. If the
+script is missing or differs, the hook writes a note to stderr and allows the command through; branch
+protection still guards merges. Each kit update writes a new digest, so trust the hook again in Codex
+`/hooks` afterwards. `doctor` warns when the gate is missing or changed. Malformed hook JSON stops
+installation without overwriting it.
 Trust the project hook in Codex `/hooks`, then confirm an unpinned merge is denied.
 Plugins containing hooks are not eligible for the Codex public directory.
 

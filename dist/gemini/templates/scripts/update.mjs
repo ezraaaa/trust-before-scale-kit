@@ -55,6 +55,17 @@ function findInstalled() {
   return best;
 }
 
+// The kit's Codex hook command, copied from codex-hook.mjs: update.mjs stays self-contained because it
+// may run beside stale scripts. update.test.mjs fails if the two copies differ.
+const gateTarget = "scripts/tbs/merge-gate.py";
+const gateNote = (digest) => `trust-before-scale: merge gate at ${gateTarget} is missing or differs from sha256 ${digest}; command not checked. Run the kit update with --codex-hook, then trust the hook again.`;
+function gateCommandFor(digest) {
+  const runner = `python3 -I -c 'import hashlib,sys;p=sys.argv[1];d=open(p,"rb").read().replace(b"\\r\\n",b"\\n");hashlib.sha256(d).hexdigest()!=sys.argv[2] and (print(sys.argv[3],file=sys.stderr),sys.exit(0));sys.argv=[p];exec(compile(d,p,"exec"),{"__name__":"__main__","__file__":p})' "$f" "${digest}" "${gateNote(digest)}"`;
+  return `if f="$(git rev-parse --show-toplevel 2>/dev/null)/${gateTarget}" && [ -f "$f" ]; then exec ${runner}; fi; echo "${gateNote(digest)}" >&2`;
+}
+const gateParts = gateCommandFor('DIGEST').split('DIGEST').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+const kitGateCommand = new RegExp(`^${gateParts[0]}[0-9a-f]{64}${gateParts.slice(1).join('[0-9a-f]{64}')}$`);
+
 function hasCodexHook(root) {
   let entries;
   try { entries = readJson(join(root, '.codex/hooks.json')).hooks?.PreToolUse ?? []; }
@@ -64,7 +75,8 @@ function hasCodexHook(root) {
   }
   // Match the kit entry even when it points to a previous plugin location.
   return entries.some(entry => entry.matcher === 'Bash' && entry.hooks?.some(hook =>
-    hook.type === 'command' && /hooks\/merge-gate\.py(?=["'\s]|$)/.test(hook.command ?? '')));
+    hook.type === 'command' && (/^python3\s+["']?(?:[A-Za-z]:)?[\\/][\s\S]*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(hook.command ?? '') ||
+      kitGateCommand.test(hook.command ?? ''))));
 }
 
 function main(args) {

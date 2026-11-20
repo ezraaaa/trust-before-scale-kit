@@ -2,6 +2,8 @@
 // Diagnose the adopted pieces using the shared config loader and installed schema.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { kitGateDigest } from "./codex-hook.mjs";
 import { execFileSync } from "node:child_process";
 import { ROOT, isMain, loadConfig, configPath, validateConfig, adoptionLevel } from "./config.mjs";
 import { outcomes } from "./learn.mjs";
@@ -48,14 +50,23 @@ export function main(argv = [], { root = ROOT, config, log = console.log,
     let installed = false;
     try {
       const hooks = JSON.parse(readFileSync(join(root, ".codex/hooks.json"), "utf8"));
-      // The hook must name a script that still exists: plugin updates move the install directory.
+      // Warn when the hook's script is missing, including for legacy absolute commands.
       installed = hooks.hooks?.PreToolUse?.some(entry => entry.matcher === "Bash" &&
         entry.hooks?.some(hook => {
-          const path = /"([^"]*hooks\/merge-gate\.py)"/.exec(hook.command ?? "")?.[1]?.replace(/\\(.)/g, "$1");
-          return hook.type === "command" && !!path && existsSync(path);
+          if (hook.type !== "command") return false;
+          const command = hook.command ?? "";
+          const pinned = kitGateDigest(command);
+          if (pinned) {
+            // The hook runs the gate only when its pinned SHA-256 matches; a changed gate is not enforced.
+            const gate = join(root, "scripts/tbs/merge-gate.py");
+            const digest = (file) => createHash("sha256").update(readFileSync(file).toString("latin1").replaceAll("\r\n", "\n"), "latin1").digest("hex");
+            return existsSync(gate) && digest(gate) === pinned;
+          }
+          const path = /"([^"]*hooks\/merge-gate\.py)"/.exec(command)?.[1]?.replace(/\\(.)/g, "$1");
+          return !!path && existsSync(path);
         }));
     } catch { /* Missing or malformed hooks are advisory; the installer reports malformed JSON. */ }
-    if (!installed) log('WARN Codex project merge hook missing or pointing at a moved plugin. Next: node "<plugin-root>/bin/tbs-init" --update --codex-hook, then trust it in Codex /hooks');
+    if (!installed) log('WARN Codex project merge hook is missing, or its gate script is missing or changed. Next: node "<plugin-root>/bin/tbs-init" --update --codex-hook, then trust it in Codex /hooks');
   }
   if (level >= 2) {
     // A project may keep its own feature map (owner decision 19 Nov 2026), as lanes.mjs accepts.

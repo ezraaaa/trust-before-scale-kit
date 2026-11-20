@@ -7,6 +7,7 @@
 const { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } = require("node:fs");
 const { dirname, join, relative, resolve } = require("node:path");
 const { execFileSync } = require("node:child_process");
+const { createHash } = require("node:crypto");
 
 // Keep Git commands scoped to their working directory when running inside a Git hook.
 for (const name of [
@@ -42,7 +43,46 @@ if (!listTargets) {
 // Prepare before copying anything: malformed project hook files must never be overwritten.
 let codexHooks;
 const codexTarget = ".codex/hooks.json";
-if (!listTargets && args.includes("--codex-hook")) {
+const gateTarget = "scripts/tbs/merge-gate.py";
+const gateLookup = `f="$(git rev-parse --show-toplevel 2>/dev/null)/${gateTarget}"`;
+// The hook runs the vendored gate only when its SHA-256 matches the one written at install, so a branch
+// that edits the gate cannot run new code under the hook trust already given (owner decision 20 Nov 2026).
+// An update writes a new digest, which changes the command, so Codex asks for trust again.
+// The digest covers the gate with CRLF normalised to LF, so Git line-ending conversion keeps it stable.
+const gateBytes = (file) => readFileSync(file).toString("latin1").replaceAll("\r\n", "\n");
+const gateDigest = createHash("sha256").update(gateBytes(join(plugin, "hooks/merge-gate.py")), "latin1").digest("hex");
+const gateNote = (digest) => `trust-before-scale: merge gate at ${gateTarget} is missing or differs from sha256 ${digest}; command not checked. Run the kit update with --codex-hook, then trust the hook again.`;
+// One isolated Python process (-I: no checkout-local imports, no PYTHONPATH) reads the gate once, checks
+// that buffer's digest and runs the same buffer, so nothing it did not verify can run. stdin stays the payload.
+const gateRunner = (digest) => `python3 -I -c 'import hashlib,sys;p=sys.argv[1];d=open(p,"rb").read().replace(b"\\r\\n",b"\\n");hashlib.sha256(d).hexdigest()!=sys.argv[2] and (print(sys.argv[3],file=sys.stderr),sys.exit(0));sys.argv=[p];exec(compile(d,p,"exec"),{"__name__":"__main__","__file__":p})' "$f" "${digest}" "${gateNote(digest)}"`;
+const gateCommandFor = (digest) => `if ${gateLookup} && [ -f "$f" ]; then exec ${gateRunner(digest)}; fi; echo "${gateNote(digest)}" >&2`;
+const gateCommand = gateCommandFor(gateDigest);
+const kitGateCommand = new RegExp(`^${gateCommandFor("DIGEST").replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll("DIGEST", "[0-9a-f]{64}")}$`);
+// An update or forced reinstall replaces the gate, so it refreshes an existing pinned kit hook (its
+// digest follows the new gate) without opting projects that have none into Codex hooks. Only the exact
+// pinned command counts here: an old absolute-path hook is replaced only on an explicit --codex-hook.
+// Old absolute-path hooks count as the kit's only on an explicit --codex-hook; an automatic refresh
+// touches nothing but the pinned kit command, so a separate policy hook named merge-gate.py survives.
+const isKitHook = (event, entry, hook) => event === "PreToolUse" && entry.matcher === "Bash" && hook?.type === "command" &&
+  ((args.includes("--codex-hook") && /^python3\s+["']?(?:[A-Za-z]:)?[\\/][\s\S]*[\\/]hooks[\\/]+merge-gate\.py["']?$/.test(hook.command ?? "")) || kitGateCommand.test(hook.command ?? ""));
+let hasKitHook = false;
+if ((update || force) && root) {
+  try {
+    const existing = JSON.parse(readFileSync(join(root, codexTarget), "utf8"));
+    hasKitHook = Object.entries(existing?.hooks ?? {}).some(([event, entries]) => Array.isArray(entries) &&
+      entries.some(entry => event === "PreToolUse" && entry?.matcher === "Bash" && Array.isArray(entry?.hooks) &&
+        entry.hooks.some(hook => hook?.type === "command" && kitGateCommand.test(hook.command ?? ""))));
+  } catch { /* No or unreadable hooks: nothing to refresh; --codex-hook reports malformed JSON. */ }
+}
+const codexHook = args.includes("--codex-hook") || hasKitHook;
+if (!listTargets && codexHook) {
+  // A plain install keeps an existing gate; a hook pinned to a different gate would never check anything.
+  const existingGate = join(root, gateTarget);
+  if (!update && !force && existsSync(existingGate) &&
+      createHash("sha256").update(gateBytes(existingGate), "latin1").digest("hex") !== gateDigest) {
+    console.error(`Cannot add the Codex hook: ${gateTarget} differs from this kit's gate. Run tbs-init --update --codex-hook.`);
+    process.exit(1);
+  }
   const codexPath = join(root, codexTarget);
   try {
     codexHooks = existsSync(codexPath) ? JSON.parse(readFileSync(codexPath, "utf8")) : {};
@@ -52,13 +92,12 @@ if (!listTargets && args.includes("--codex-hook")) {
     for (const [event, entries] of Object.entries(codexHooks.hooks)) {
       if (!Array.isArray(entries) || entries.some(entry => !object(entry) || !Array.isArray(entry.hooks))) throw new Error(`invalid ${event} hook entries`);
       codexHooks.hooks[event] = entries.flatMap(entry => {
-        const hooks = entry.hooks.filter(hook => !/hooks\/merge-gate\.py(?=["'\s]|$)/.test(hook.command ?? ""));
+        // Only the kit's own Bash pre-hook: an old absolute command, or exactly the generated one.
+        const hooks = entry.hooks.filter(hook => !isKitHook(event, entry, hook));
         return hooks.length || entry.hooks.length === 0 ? [{ ...entry, hooks }] : [];
       });
     }
-    // Escape shell expansions as well as quotes in the absolute path.
-    const script = join(plugin, "hooks/merge-gate.py").replace(/[\\"$`]/g, "\\$&");
-    (codexHooks.hooks.PreToolUse ??= []).push({ matcher: "Bash", hooks: [{ type: "command", command: `python3 "${script}"`, timeout: 10 }] });
+    (codexHooks.hooks.PreToolUse ??= []).push({ matcher: "Bash", hooks: [{ type: "command", command: gateCommand, timeout: 10 }] });
   } catch (error) {
     console.error(`Cannot update .codex/hooks.json: ${error.message}`); process.exit(1);
   }
@@ -91,6 +130,7 @@ function placeTree(fromDir, toDir) {
 const version = JSON.parse(readFileSync(join(plugin, ".claude-plugin", "plugin.json"), "utf8")).version;
 const versionTarget = "scripts/tbs/VERSION";
 placeTree(join(plugin, "templates", "scripts"), "scripts/tbs");
+place(join(plugin, "hooks/merge-gate.py"), gateTarget);
 if (args.includes("--ci")) {
   const workflow = ".github/workflows/trust-before-scale.yml";
   if (listTargets || !update || !existsSync(join(root, workflow))) place(join(plugin, "templates", "ci", "trust-before-scale.yml"), workflow);
@@ -111,7 +151,7 @@ if (!update) {
 }
 place(join(plugin, "templates", "docs", "brief-template.md"), "docs/trust-before-scale/brief-template.md");
 if (listTargets) {
-  if (args.includes("--codex-hook")) targets.push(codexTarget);
+  if (codexHook) targets.push(codexTarget);
   console.log(JSON.stringify([...targets, versionTarget]));
   process.exit(0);
 }

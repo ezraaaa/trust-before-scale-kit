@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { main } from './doctor.mjs';
+import { gateCommandFor } from './codex-hook.mjs';
 test('Codex hook warning is advisory and gives the installer command', () => {
   const root = mkdtempSync(join(tmpdir(), 'tbs-doctor-'));
   try {
@@ -21,11 +22,26 @@ test('Codex hook warning is advisory and gives the installer command', () => {
     }
     const hookFile = (script) => writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `python3 "${script}"` }] }] } }));
     hookFile('/moved kit/hooks/merge-gate.py');
-    assert.match(check()[0], /moved plugin/);
+    assert.match(check()[0], /gate script is missing/);
     mkdirSync(join(root, 'kit dir/hooks'), { recursive: true });
     writeFileSync(join(root, 'kit dir/hooks/merge-gate.py'), '');
     hookFile(join(root, 'kit dir/hooks/merge-gate.py'));
     assert.deepEqual(check(), []);
+    const emptyDigest = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    const lookalike = `if f="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tbs/merge-gate.py" && [ -f "$f" ]; then exec python3 -I -c 'x' "$f" "${emptyDigest}" "note"; fi`;
+    const command = gateCommandFor(emptyDigest);
+    mkdirSync(join(root, 'scripts/tbs'), { recursive: true });
+    writeFileSync(join(root, 'scripts/tbs/merge-gate.py'), '');
+    writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: lookalike }] }] } }));
+    assert.match(check()[0], /--update --codex-hook/);
+    rmSync(join(root, 'scripts/tbs/merge-gate.py'));
+    writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command }] }] } }));
+    assert.match(check()[0], /--update --codex-hook/);
+    mkdirSync(join(root, 'scripts/tbs'), { recursive: true });
+    writeFileSync(join(root, 'scripts/tbs/merge-gate.py'), '');
+    assert.deepEqual(check(), []);
+    writeFileSync(join(root, 'scripts/tbs/merge-gate.py'), '# edited on a branch\n');
+    assert.match(check()[0], /missing or changed/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
