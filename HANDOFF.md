@@ -13,7 +13,8 @@ a claim to check against git and GitHub.
 - The kit now uses itself at adoption level 1: `.agents/trust-before-scale.json`, the autopilot extension
   `.agents/skills/autopilot/SKILL.md`, generated `scripts/tbs/`, `docs/trust-before-scale/`.
   `lanes.mjs` allows one lane.
-- In flight: nothing. No open feature branch or lane worktree.
+- In flight: updating the owner's five projects to 1.7.3 (owner asked 22 Nov 2026). Not started in any
+  project: no branch, worktree or PR exists for it. See "Next exact action".
 - Merged into `develop` on 19 Nov 2026: PR 23 self-adoption (`84f0289`), PR 26 learn/method parking,
   PR 27 token efficiency, PR 30 autopilot supervision ladder (`eb4417c`), PR 31 a missing `level` is level 1
   in every script and the merge-gate hook, and `doctor` accepts a project-kept feature map (`704d4e3`).
@@ -46,8 +47,7 @@ a claim to check against git and GitHub.
 
 ## Owner list (parked questions)
 
-1. Update the owner's five projects to 1.7.3 (each on a project branch, each project's own approval rules).
-   Recommended: before 25 Nov 2026, so the eval reruns (evidence rule 4) happen once, on 1.7.3.
+1. Merge each project's 1.7.3 update PR, once opened (each project's own approval rules).
 2. Raise the kit's adoption level? Level 2 needs a feature map (the kit has no screens): `doctor` now accepts a
    project that keeps its own map (owner decision 19 Nov 2026), so the kit could map its skills or keep none. Recommended: wait until
    #41 (flaky tests) is fixed.
@@ -86,8 +86,34 @@ a claim to check against git and GitHub.
 
 ## Next exact action
 
-Ask the owner whether to update the five projects to 1.7.3 now (owner list 1), checking each config's
-`level` first; otherwise plan #41 for the owner.
+Update the owner's five projects to 1.7.3 (owner asked 22 Nov 2026), before 25 Nov 2026 so each project
+reruns its evals once, on 1.7.3. Find them with
+`find ~/Development/Projects -maxdepth 5 -path '*scripts/tbs/VERSION' -not -path '*/worktrees/*'`
+(each repo's main checkout; the other hits are their worktrees). Checked 22 Nov 2026: all five have
+`scripts/tbs/VERSION` 1.7.2 on `origin/develop` and git flow with `feature/`.
+
+- Levels, owner decision 22 Nov 2026: every project runs at `"level": 4`. Two already set it; the three
+  without `level` get `"level": 4` in the update PR (keeps their pre-1.7.3 behaviour). One of those three
+  has an open PR that only sets level 4; close it once the update PR carries the same line.
+- One project commits `.codex/hooks.json`: the update pins it (SHA-256); re-trust it in Codex `/hooks`.
+- One project's main checkout still has 1.7.1 vendored; its `develop` has 1.7.2.
+
+Blocker found: the updater uses the newest *installed* plugin, and the plugin cache has only up to 1.7.2
+(`~/.claude/plugins/cache/trust-before-scale-kit/trust-before-scale/`). Running
+`templates/scripts/update.mjs` from a v1.7.3 checkout printed "Already on 1.7.2 (newest installed:
+1.7.2)" and changed nothing. First update the installed plugin to 1.7.3 (owner: `/plugin` marketplace
+update in Claude Code, or the Codex equivalent), then confirm the cache has `1.7.3/`.
+
+Then, per project: a worktree from `origin/develop` on `feature/tbs-kit-1.7.3` (never switch the owner's
+main checkout or another session's branch), run the installed 1.7.3 `update.mjs` in place
+(`--codex-hook` not needed: an existing kit hook is refreshed), set `level` where missing, review the diff,
+run the project's gates, open a PR. Do not merge: each project's owner rules apply. After merge, rerun the
+project's eval suites (evidence rule 4). Message any live session in that project first (`ListAgents`).
+
+Peer notes 22 Nov 2026: two project sessions reported nothing in flight on kit files; one could not be
+reached. One project's own trust-measures script crashed on a merge commit, so its trust numbers read
+"not measured"; do not lean on them for the level-4 switch. Another has a stale, merged kit-update
+worktree holding 2 uncommitted paths on kit files; ask the owner before touching it.
 
 Release note: git-flow 0.4.1 refuses `release start` in a linked worktree when `develop` is checked out
 elsewhere ("not a valid commit on 'develop'"); run `cut-release` from the main checkout.
