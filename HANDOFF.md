@@ -87,19 +87,16 @@ a claim to check against git and GitHub.
 ## Next exact action
 
 Update the owner's five projects to 1.7.3 (owner asked 22 Nov 2026), before 25 Nov 2026 so each project
-reruns its evals once, on 1.7.3. Checked 22 Nov 2026, all five have `scripts/tbs/VERSION` 1.7.2 on
-`origin/develop`, git flow with `feature/`:
+reruns its evals once, on 1.7.3. Find them with
+`find ~/Development/Projects -maxdepth 5 -path '*scripts/tbs/VERSION' -not -path '*/worktrees/*'`
+(each repo's main checkout; the other hits are their worktrees). Checked 22 Nov 2026: all five have
+`scripts/tbs/VERSION` 1.7.2 on `origin/develop` and git flow with `feature/`.
 
-| Project (under `~/Development/Projects/`) | Config | `level` | Notes |
-|---|---|---|---|
-| `KitNow/kiddolog` | `.claude/trust-before-scale.json` | missing: set 4 | Open PR 5318 sets level 4 alone; close it once the update PR carries the same line |
-| `KitNow/kitnow-landing` (repo `kitnow-co/kitnow-landing`) | `.agents/…` | 4 | |
-| `Personal/revamped-portfolio` | `.agents/…` | 4 | main checkout still has 1.7.1 vendored; `develop` has 1.7.2 |
-| `Personal/lampstand` | `.claude/…` | missing: set 4 | |
-| `KitNow-Client/peopable-venture-tms` | `.claude/…` | missing: set 4 | Commits `.codex/hooks.json`; the update pins it (SHA-256), then re-trust it in Codex `/hooks` |
-
-Owner decision 22 Nov 2026: kiddolog, lampstand and peopable-venture-tms get `"level": 4` (keeps their
-pre-1.7.3 behaviour).
+- Levels, owner decision 22 Nov 2026: every project runs at `"level": 4`. Two already set it; the three
+  without `level` get `"level": 4` in the update PR (keeps their pre-1.7.3 behaviour). One of those three
+  has an open PR that only sets level 4; close it once the update PR carries the same line.
+- One project commits `.codex/hooks.json`: the update pins it (SHA-256); re-trust it in Codex `/hooks`.
+- One project's main checkout still has 1.7.1 vendored; its `develop` has 1.7.2.
 
 Blocker found: the updater uses the newest *installed* plugin, and the plugin cache has only up to 1.7.2
 (`~/.claude/plugins/cache/trust-before-scale-kit/trust-before-scale/`). Running
@@ -111,13 +108,12 @@ Then, per project: a worktree from `origin/develop` on `feature/tbs-kit-1.7.3` (
 main checkout or another session's branch), run the installed 1.7.3 `update.mjs` in place
 (`--codex-hook` not needed: an existing kit hook is refreshed), set `level` where missing, review the diff,
 run the project's gates, open a PR. Do not merge: each project's owner rules apply. After merge, rerun the
-project's eval suites (evidence rule 4).
+project's eval suites (evidence rule 4). Message any live session in that project first (`ListAgents`).
 
-Peer notes 22 Nov 2026: the kiddolog and peopable-venture-tms sessions have nothing in flight on kit files.
-peopable-venture-tms: its own `scripts/checks/d6-measures.mjs` crashed on merge commit `6559b90f`, so its
-trust numbers read "not measured"; do not lean on them for the level-4 switch. kiddolog: a stale worktree
-`.claude/worktrees/core-flows-guards-edge-cases-820ac1` (branch `chore/tbs-kit-1.7.0`, merged) holds 2
-uncommitted paths on kit files; ask the owner before touching it.
+Peer notes 22 Nov 2026: two project sessions reported nothing in flight on kit files; one could not be
+reached. One project's own trust-measures script crashed on a merge commit, so its trust numbers read
+"not measured"; do not lean on them for the level-4 switch. Another has a stale, merged kit-update
+worktree holding 2 uncommitted paths on kit files; ask the owner before touching it.
 
 Release note: git-flow 0.4.1 refuses `release start` in a linked worktree when `develop` is checked out
 elsewhere ("not a valid commit on 'develop'"); run `cut-release` from the main checkout.
